@@ -1,6 +1,6 @@
 <#PSScriptInfo
 
-.VERSION 0.0.6
+.VERSION 0.0.7
 
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 
@@ -19,6 +19,7 @@
 [Version 0.0.4] - Added to GitHub.
 [Version 0.0.5] - Fixed signature.
 [Version 0.0.6] - Fixed various bugs.
+[Version 0.0.7] - Added removal AppxPackage.
 
 #>
 
@@ -30,7 +31,7 @@
 .EXAMPLE
     UninstallTeams.ps1
 .NOTES
-    Version      : 0.0.6
+    Version      : 0.0.7
     Created by   : asheroto
 .LINK
     Project Site: https://github.com/asheroto/UninstallTeams
@@ -49,12 +50,16 @@ try {
 	Write-Output "Stopping Teams process..."
 	Stop-Process -Name "*teams*" -Force -ErrorAction SilentlyContinue
 
-	Write-Output "Uninstalling Teams process"
+	Write-Output "Uninstalling Teams from AppData\Microsoft\Teams"
 	if ([System.IO.File]::Exists($TeamsUpdateExePath)) {
 		# Uninstall app
 		$proc = Start-Process $TeamsUpdateExePath "-uninstall -s" -PassThru
 		$proc.WaitForExit()
 	}
+
+	Write-Output "Removing Teams AppxPackage..."
+	Get-AppxPackage "*Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
+	Get-AppxPackage "*Teams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
 
 	Write-Output "Deleting Teams directory"
 	if ([System.IO.Directory]::Exists($TeamsPath)) {
@@ -80,8 +85,8 @@ try {
 # SIG # Begin signature block
 # MIIp0AYJKoZIhvcNAQcCoIIpwTCCKb0CAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCd3boS/qIsRIUP
-# WxEkJ9fwoFF37iX56qXdkjWX904PuqCCDrkwggawMIIEmKADAgECAhAIrUCyYNKc
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBOIokT/jF1g0Gy
+# ChJWpKMDF93hFD2sKKTaGIYz1f/aGaCCDrkwggawMIIEmKADAgECAhAIrUCyYNKc
 # TJ9ezam9k67ZMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0yMTA0MjkwMDAwMDBaFw0z
@@ -165,22 +170,22 @@ try {
 # aW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAOyLAmjUpdRlQheQrwADJFMA0G
 # CWCGSAFlAwQCAQUAoHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIFRZIKLSeH2k77LvsbbzQjdN0K8dKWvbD1SMFfbhAe2rMA0GCSqG
-# SIb3DQEBAQUABIICAJznWGGOp4HUYkeQL7sNe4iHMtppjV7+rLnLhWxVWg0WbvGX
-# 9RP5/IOheN7KDOtU50emXE+yqebdy+etEkYuOFGhlbnFdVHgggCCz8p8HzAnzTW8
-# dFn+X4/2Rm34b4rzqLNIolTty6w2SSdXGX9jwf671ZwX4X9umhhLas2u9tho+r/I
-# VOvunom8E31SGqIAW34V39CSWPWMK6FF4EhbFMmx1H5C4qsz955klQy2WoYYrj+X
-# bku/bz2avKc8g+hlOnGfqm/b7CSJPHyc8gR8tsXeHWZf5C5oXE6R0ZmC7ltjgJ49
-# JR7cJRt7TY9lnzfBx7bMYVkq41EPR2Vv0MQqdrcPqDPGyyO7T/i2hEt0+8mBuW5n
-# /5kOSLWLwOxK30/CLLhzOO9Vb8+EHhtWz35K6PjZuG+/pCn+JWQAt/JQqFGAemm8
-# x0ew+spg0+KChZoiNJhhXJsrj32C0wUmoE42Ufw9tHCSSCLN7NO+KxqbpsZh9bMT
-# 92fMEdUgZNzEyrBs2tuY7Fjsr1Ge5LyhTvxhkLoFDHk8Fko7z2GAdNfWXiPDeUxT
-# x4R0RE3qpmsBfjMycUHa0DNQNXXpz2chfsz9/Ota8mAHMFGpGOPwiYyrokJdt4+i
-# mWCfEWLQDhMqggkrXhAFphbtVvH656IWku0OP3w2ikZxKrbLoVp6BEtjVwo0oYIX
+# hvcNAQkEMSIEIG3TKgilFCr5J3uOVYPTMsW7pYTQ5B/jJYl1hOhn3Ev6MA0GCSqG
+# SIb3DQEBAQUABIICAJ8W8Xg0DCDAkT9UcRWqNGAp9yIhieB1eU/I4jtFcwwRbGrD
+# uEEk9aWBldOeRlon5auCGR8X56vR/xVPv2CbHd74NeFs8Zh5slRRRvrc0OcxAsYk
+# lGmbzwzWFd+zKwqZlA+65bGXPVHHf+BzrdayVXh6fimdyDF8RGLnoQeC6n9rVsjN
+# d9mrfRvSZ8r7I0Q5ivstjIdrmXa3vnH+QQwVSyfeE9+e64W1+iPnL/781vKrJpD+
+# 56vpbAgWZ/IZZnT7pHGbu5ujAnMjo83uqs8+RqzebOkvq8enBUA38GrD0WLUkQJY
+# r8mNC8OzVkqLjWAdxgrxv3YgQ4GX/pLL+Eq8VjQxbZAd39wIIq+j3yrbAUL7ba/0
+# J/IiJPLvgCsl9c4zOPNPijDvAD1PqhZAh++QaMLOX8QHG/RYpyArfJQ86/3axJvP
+# RmN4J+cIVpGyaInaEcjKETXKDEQuLT3022jfK9xoZ+ExhxviZqjEb0YGX7LlK6Ly
+# f7t9PLmjygCu8TMoVhNVIebP0l4EDXqWrt0sWyrCqfyXEE3x9mttucK1r+23pMaJ
+# vaHG+bMWMlC+3Yyt4az/+1HDk9lpNwX5hnOsKYlyWGz0fdLR7KG/MuupQ3dWI4hn
+# eQ2sQNOyV17DY8Ulm/qEfiosdiJcU9ORf8PWKLEcv2f7/iSzABEMB5uMgDz2oYIX
 # QzCCFz8GCisGAQQBgjcDAwExghcvMIIXKwYJKoZIhvcNAQcCoIIXHDCCFxgCAQMx
 # DzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0BCRABBKBoBGYwZAIBAQYJYIZIAYb9
-# bAcBMDEwDQYJYIZIAWUDBAIBBQAEIHLDD6CMX/BbKjvcMl57v3VvCTu8OpR4I6VG
-# aGNcy/GHAhAF6A4Ubrr/ZPUVQLYUPEtvGA8yMDIyMDgyOTA0MDUzMFqgghMNMIIG
+# bAcBMDEwDQYJYIZIAWUDBAIBBQAEIGYgTn+RaHuqrEzQjnmlgpLcbKBNNAFJPsPN
+# mZ3OLZHjAhBLsovWriLYjPA35uGOAKiPGA8yMDIyMDgyOTA0MjgwMFqgghMNMIIG
 # xjCCBK6gAwIBAgIQCnpKiJ7JmUKQBmM4TYaXnTANBgkqhkiG9w0BAQsFADBjMQsw
 # CQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRp
 # Z2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENB
@@ -286,20 +291,20 @@ try {
 # BAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UEAxMyRGlnaUNl
 # cnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBpbmcgQ0ECEAp6
 # SoieyZlCkAZjOE2Gl50wDQYJYIZIAWUDBAIBBQCggdEwGgYJKoZIhvcNAQkDMQ0G
-# CyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yMjA4MjkwNDA1MzBaMCsGCyqG
+# CyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yMjA4MjkwNDI4MDBaMCsGCyqG
 # SIb3DQEJEAIMMRwwGjAYMBYEFIUI84ZRXLPTB322tLfAfxtKXkHeMC8GCSqGSIb3
-# DQEJBDEiBCCjKTPkNgQ3uoG+vOAFgp6xLnQdXGS02NwbSkZl4DXUHTA3BgsqhkiG
+# DQEJBDEiBCB1Io1yRdEWHXWOGjzNbr11YVYUwd2bX0Smws2nTobWDDA3BgsqhkiG
 # 9w0BCRACLzEoMCYwJDAiBCCdppAVw0nGwYl4Rbo1gq1wyI+kKTvbar6cK9JTknnm
-# OzANBgkqhkiG9w0BAQEFAASCAgCwx/BVKTzBs3T66MaF3sFT/OM55DjAokF9QiYn
-# 0HZ/EdBjN6YuuddwKXMlDWqqIXqNBV+Dl6Fh68wkg+M46cAb+52MV+Yv3529KVjm
-# 2jTXqCBAgHA63XTjMqUrz0VmeASzGiMYv5QDtixSTjwAp2xxBtC7TGZemivi7xjw
-# /F0X+h2glwSkCArJHagKhMyjDhqjwz3r6aq0EyOpENiX6LOGAKPvDa0t8pMBmTBL
-# MEaBoXvZ/+vHHJk3MEBziz3vuvs2Y38kqqSY4vIa5vhExF1cGbU639qAYbFif7mr
-# 7TjyYO8zFlAzIoIfExfk10dc9mgHufo4Nomz8QSG5jC1R6J0k07BIfa12uWFx6bT
-# 9ZXIXAFyHxPdnIUqYTJlp2PXrGRUdNiujvoRD+juNEVkbbZzf8ixBYujeyWV9SQo
-# hNGWzLMw3zvLarkhIsER3juxE4BisJ9XPm3igMkuhqhpKaIwqhtbdRbEC4MFTN2z
-# 4EmT4GrOMBDC1YgiWl4mKi8xYgsMk6Gh5NCzbehDJB0XrphSWJWfO5Ytwn0Eh9Hj
-# wfBH4IBSdAwAOwO5zCI5sTs5VErJ8jPP9S0NEh5s0/YvxCUOaelItIgSnW5e1YY+
-# 84mJUkltNPYLBTyEZ+YSZg0jjS1wC++fqun/wbWzuxpOKmecd+hOmy7OvRoOoPsy
-# Yb5qBA==
+# OzANBgkqhkiG9w0BAQEFAASCAgCfXAMPEYUpEW9Jj01eMtZjNVgX/WzYOyeOZJya
+# 4tDEzVcRrc6EwktDks7X8g4kSvOvlplOo6DwD7/T/daFywXPs0bTm1a1NKWPm3Qr
+# B/Er4MCZKBfqFPo+NqiqkIEPTTVYLR0p1ybC3KwSj1o880ohaq86SxS2xRiTE70h
+# NIWTotx0SW8cEOm1DZ4BJ7ZmaIvEZC40ySCqDKAZQDZbqaletLzf5ALHbVdO+htg
+# siYbZjf7dcad4PinjTkDc51bSv+0xoHn69TzojM98KYSc3G168Uw1e4uneHaWtqt
+# IrL03GfU+Rzu49tD81prKzy5qOcJvgWtx0YOvutmBQmlD/nyxt5qiEtjOHI1zPCu
+# KdZ1Wu8rA9kfzfnfTwOnYHMAdOcwmq+IQzRiRje4DXW+yPeHAoFantG7jr/l8oO8
+# jn6+a2pENS4Ny/9owSbjC8O6SCkQJEgvszxDlRAOPMwxXGwOWon/6PvfeudxlZUg
+# ODZt6QhMQ/E3EJinoHhEniHlBl+TZTvrd9lrNF4SdCdZpasYVS0zV+7BKf7cLxUD
+# plXaCM+z+RuZ4HOwOteLY9DD4Ly/W9mJolfvuIRrkiNNrVDIeblCbMJLcp3BukDc
+# OJBlmFg1l7kXOvm6aV231rie1mWJbjxFZ8H+YCj9lIHCu8eSMnHu+C1iu8HT9aiY
+# L01B+Q==
 # SIG # End signature block
