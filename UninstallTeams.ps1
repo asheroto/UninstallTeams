@@ -33,6 +33,7 @@
     UninstallTeams.ps1
 .NOTES
     Version      : 0.0.7
+    Version      : 0.0.7
     Created by   : asheroto
 .LINK
     Project Site: https://github.com/asheroto/UninstallTeams
@@ -53,11 +54,19 @@ try {
 	Stop-Process -Name "*teams*" -Force -ErrorAction SilentlyContinue
 
 	Write-Output "Uninstalling Teams from AppData\Microsoft\Teams"
+	Write-Output "Stopping Teams process..."
+	Stop-Process -Name "*teams*" -Force -ErrorAction SilentlyContinue
+
+	Write-Output "Uninstalling Teams from AppData\Microsoft\Teams"
 	if ([System.IO.File]::Exists($TeamsUpdateExePath)) {
 		# Uninstall app
 		$proc = Start-Process $TeamsUpdateExePath "-uninstall -s" -PassThru
 		$proc.WaitForExit()
 	}
+
+	Write-Output "Removing Teams AppxPackage..."
+	Get-AppxPackage "*Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
+	Get-AppxPackage "*Teams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
 
 	Write-Output "Removing Teams AppxPackage..."
 	Get-AppxPackage "*Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
@@ -76,6 +85,10 @@ try {
 		$FilePath = ($us.Substring(0, $us.IndexOf(".exe") + 4).Trim())
 		$ProcessArgs = ($us.Substring($us.IndexOf(".exe") + 5).Trim().replace("  ", " "))
 		$proc = Start-Process -FilePath $FilePath -Args $ProcessArgs -PassThru
+		$us = ($us.Replace("/I", "/uninstall ") + " /quiet").Replace("  ", " ")
+		$FilePath = ($us.Substring(0, $us.IndexOf(".exe") + 4).Trim())
+		$ProcessArgs = ($us.Substring($us.IndexOf(".exe") + 5).Trim().replace("  ", " "))
+		$proc = Start-Process -FilePath $FilePath -Args $ProcessArgs -PassThru
 		$proc.WaitForExit()
 	}
 
@@ -86,6 +99,7 @@ try {
 	Write-Output "Restart computer to complete uninstall"
 } catch {
 	Write-Output "Uninstall failed with exception $_.exception.message"
+	exit 1
 	exit 1
 }
 # SIG # Begin signature block
