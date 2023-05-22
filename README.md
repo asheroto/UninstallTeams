@@ -2,6 +2,8 @@
 
 # UninstallTeams
 
+This script will uninstall Microsoft Teams from all locations in a few seconds.
+
 # Install
 On any Windows machine, open PowerShell as Administrator and type...
 
