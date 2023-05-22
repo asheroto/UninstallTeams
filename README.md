@@ -1,4 +1,4 @@
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W7W64WAXN)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/asheroto)
 
 # UninstallTeams
 
@@ -10,6 +10,10 @@ Install-Script UninstallTeams
 ```
 
 And accept the prompts.
+
+This script is published on  [PowerShell Gallery](https://www.powershellgallery.com/packages/UninstallTeams).
+
+The code is signed, so if you want to change it, just removed the  `# SIG # Begin signature block`  line and everything beneath it.
 
 ### Usage
 To use, type...
