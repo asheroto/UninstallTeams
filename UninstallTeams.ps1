@@ -78,8 +78,19 @@ param (
 	[switch]$DisableChatWidget,
 	[switch]$UnsetChatWidget,
 	[switch]$AllUsers,
-	[switch]$Version
+	[switch]$Version,
+	[switch]$Help,
+	[switch]$CheckForUpdates
 )
+
+# Version
+$CurrentVersion = '1.0.0'
+
+# Check if -Version is specified
+if ($Version.IsPresent) {
+	$CurrentVersion
+	exit 0
+}
 
 function Get-ChatWidgetStatus {
 	param (
@@ -153,12 +164,45 @@ function Set-ChatWidgetStatus {
 	Write-Output "Chat widget has been $WhatChanged for $AllUsersString."
 }
 
-# Version
-$MyVersion = '1.0.0'
+function Check-GitHubRelease {
+	param (
+		[string]$Owner,
+		[string]$Repo
+	)
+	try {
+		$url = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
+		$response = Invoke-RestMethod -Uri $url -ErrorAction Stop
 
-# Check if -Version is specified
-if ($Version.IsPresent) {
-	$MyVersion
+		$latestVersion = $response.tag_name
+		$publishedAt = $response.published_at
+
+		[PSCustomObject]@{
+			LatestVersion = $latestVersion
+			PublishedAt   = $publishedAt
+		}
+	} catch {
+		Write-Error "Unable to check for updates. Error: $_"
+		exit 1
+	}
+}
+
+# Help
+if ($Help) {
+	Get-Help -Name $MyInvocation.MyCommand.Source -Full
+	exit 0
+}
+
+# Check for updates
+if ($CheckForUpdates) {
+	$Data = Check-GitHubRelease
+	$LatestVersion = $Data.LatestVersion
+	$PublishedAt = $Data.PublishedAt
+
+	if ($LatestVersion -gt $CurrentVersion) {
+		Write-Output "A new version of UninstallTeams is available. Current version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedAt."
+	} else {
+		Write-Output "UninstallTeams is up to date. Current version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedAt."
+	}
 	exit 0
 }
 
@@ -184,9 +228,8 @@ try {
 	Write-Output ""
 
 	# Update note
-	$ScriptPath = $MyInvocation.MyCommand.Path
-	$ScriptVersion = (Get-Command $ScriptPath).FileVersionInfo.ProductVersion
-	Write-Output "The current version of this script is $ScriptVersion. To update to the latest version, run 'Update-Script UninstallTeams -Force'."
+	Write-Output "Uninstall Teams $ScriptVersion"
+	Write-Output "To check for updates, run UninstallTeams -CheckForUpdates"
 
 	# Spacer
 	Write-Output ""

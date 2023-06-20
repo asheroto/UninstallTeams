@@ -60,6 +60,40 @@ Describe "Get-ChatWidgetStatus Function" {
 			Remove-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat" -Name "ChatIcon" -Force
 		}
 	}
+
+	Context "When -AllUsers switch is used without -EnableChatWidget, -DisableChatWidget, or -UnsetChatWidget" {
+		It "Should not throw an error" {
+			{ Get-ChatWidgetStatus -AllUsers } | Should -Not -Throw
+		}
+	}
+
+	Context "When -AllUsers switch is used with -EnableChatWidget" {
+		It "Should set the Chat widget status for all users" {
+			Set-ChatWidgetStatus -EnableChatWidget -AllUsers
+			$status = Get-ChatWidgetStatus -AllUsers
+			$status | Should -Be "Enabled"
+			# Disable the Chat widget for all users
+			Set-ChatWidgetStatus -DisableChatWidget -AllUsers
+		}
+	}
+
+	Context "When -AllUsers switch is used with -DisableChatWidget" {
+		It "Should set the Chat widget status for all users" {
+			Set-ChatWidgetStatus -DisableChatWidget -AllUsers
+			$status = Get-ChatWidgetStatus -AllUsers
+			$status | Should -Be "Disabled"
+			# Enable the Chat widget for all users
+			Set-ChatWidgetStatus -EnableChatWidget -AllUsers
+		}
+	}
+
+	Context "When -AllUsers switch is used with -UnsetChatWidget" {
+		It "Should set the Chat widget status for all users" {
+			Set-ChatWidgetStatus -UnsetChatWidget -AllUsers
+			$status = Get-ChatWidgetStatus -AllUsers
+			$status | Should -Be "Not Set"
+		}
+	}
 }
 
 Describe "Set-ChatWidgetStatus Function" {
@@ -88,6 +122,16 @@ Describe "Set-ChatWidgetStatus Function" {
 			Set-ChatWidgetStatus -UnsetChatWidget
 			$status = Get-ChatWidgetStatus
 			$status | Should -Be "Not Set"
+		}
+	}
+
+	Context "When -AllUsers switch is used" {
+		It "Should set the Chat widget status for all users" {
+			Set-ChatWidgetStatus -EnableChatWidget -AllUsers
+			$status = Get-ChatWidgetStatus -AllUsers
+			$status | Should -Be "Enabled"
+			# Disable the Chat widget for all users
+			Set-ChatWidgetStatus -DisableChatWidget -AllUsers
 		}
 	}
 }
