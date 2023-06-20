@@ -1,318 +1,270 @@
 <#PSScriptInfo
-
-.VERSION 0.0.8
-
+.VERSION 1.0.0
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
-
 .AUTHOR asherto
-
 .COMPANYNAME asheroto
-
-.TAGS PowerShell Microsoft Teams remove uninstall delete erase
-
+.TAGS PowerShell, Microsoft Teams, remove, uninstall, delete, erase
 .PROJECTURI https://github.com/asheroto/UninstallTeams
-
 .RELEASENOTES
 [Version 0.0.1] - Initial Release.
-[Version 0.0.2] - Fixed typo and confirmed directory existance before removal.
+[Version 0.0.2] - Fixed typo and confirmed directory existence before removal.
 [Version 0.0.3] - Added support for Uninstall registry key.
 [Version 0.0.4] - Added to GitHub.
 [Version 0.0.5] - Fixed signature.
 [Version 0.0.6] - Fixed various bugs.
 [Version 0.0.7] - Added removal AppxPackage.
 [Version 0.0.8] - Added removal of startup entries.
-
+[Version 1.0.0] - Added ability to optionally disable Chat widget (Win+C) which will reinstall Teams. Major refactor of code.
 #>
 
 <#
 .SYNOPSIS
-    Uninstalls Microsoft Teams and removes the Teams directory for a user. Usage: UninstallTeams
+Uninstalls Microsoft Teams and removes the Teams directory for a user.
+
 .DESCRIPTION
-    Uninstalls Microsoft Teams and removes the Teams directory for a user. Usage: UninstallTeams
+Uninstalls Microsoft Teams and removes the Teams directory for a user.
+
+The script stops the Teams process, uninstalls Teams from the AppData directory, removes the Teams AppxPackage, deletes the Teams directory, uninstalls Teams from the Uninstall registry key, and removes Teams from the startup registry key.
+
+.PARAMETER DisableChatWidget
+Disables the Chat widget (Win+C) for Microsoft Teams.
+
+.PARAMETER EnableChatWidget
+Enables the Chat widget (Win+C) for Microsoft Teams.
+
+.PARAMETER UnsetChatWidget
+Removes the Chat widget key, effectively enabling it since that is the default.
+
+.PARAMETER AllUsers
+Applies the Chat widget setting to all user profiles on the machine.
+
 .EXAMPLE
-    UninstallTeams.ps1
+UninstallTeams.ps1 -DisableChatWidget
+Disables the Chat widget (Win+C) for Microsoft Teams.
+
+.EXAMPLE
+UninstallTeams.ps1 -EnableChatWidget
+Enables the Chat widget (Win+C) for Microsoft Teams.
+
+.EXAMPLE
+UninstallTeams.ps1 -UnsetChatWidget
+Removes the Chat widget key, effectively enabling it since that is the default.
+
+.EXAMPLE
+UninstallTeams.ps1 -DisableChatWidget -AllUsers
+Disables the Chat widget (Win+C) for Microsoft Teams for all user profiles on the machine.
+
+.EXAMPLE
+UninstallTeams.ps1 -EnableChatWidget -AllUsers
+Enables the Chat widget (Win+C) for Microsoft Teams for all user profiles on the machine.
+
+.EXAMPLE
+UninstallTeams.ps1 -UnsetChatWidget -AllUsers
+Removes the Chat widget key, effectively enabling it since that is the default, for all user profiles on the machine.
+
 .NOTES
-    Version      : 0.0.8
-    Created by   : asheroto
+Version  : 1.0.0
+Created by   : asheroto
+
 .LINK
-    Project Site: https://github.com/asheroto/UninstallTeams
+Project Site: https://github.com/asheroto/UninstallTeams
+
 #>
 
 #Requires -RunAsAdministrator
 
-# Get uninstall string from registry
-function getUninstallString($match) {
-	return (Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Where-Object { $_.DisplayName -like "*$match*" }).UninstallString
+param (
+	[switch]$EnableChatWidget,
+	[switch]$DisableChatWidget,
+	[switch]$UnsetChatWidget,
+	[switch]$AllUsers,
+	[switch]$Version
+)
+
+function Get-ChatWidgetStatus {
+	param (
+		[switch]$AllUsers
+	)
+
+	if ($AllUsers) {
+		$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat"
+	} else {
+		$RegistryPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat"
+	}
+
+	if (Test-Path $RegistryPath) {
+		$ChatIconValue = (Get-ItemProperty -Path $RegistryPath -Name "ChatIcon" -ErrorAction SilentlyContinue).ChatIcon
+		if ($ChatIconValue -eq $null) {
+			return "Not Set"
+		} elseif ($ChatIconValue -eq 1) {
+			return "Enabled"
+		} elseif ($ChatIconValue -eq 2) {
+			return "Hidden"
+		} elseif ($ChatIconValue -eq 3) {
+			return "Disabled"
+		}
+	}
+
+	return "Not Set"
 }
 
-$TeamsPath = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'Microsoft', 'Teams')
-$TeamsUpdateExePath = [System.IO.Path]::Combine($TeamsPath, 'Update.exe')
+function Set-ChatWidgetStatus {
+	param (
+		[switch]$EnableChatWidget,
+		[switch]$DisableChatWidget,
+		[switch]$UnsetChatWidget,
+		[switch]$AllUsers
+	)
 
-try {
-	# Stopping Teams process
-	Write-Output "Stopping Teams process..."
-	Stop-Process -Name "*teams*" -Force -ErrorAction SilentlyContinue
-
-	# Uninstall from AppData\Microsoft\Teams
-	Write-Output "Uninstalling Teams from AppData\Microsoft\Teams"
-	if ([System.IO.File]::Exists($TeamsUpdateExePath)) {
-		# Uninstall app
-		$proc = Start-Process $TeamsUpdateExePath "-uninstall -s" -PassThru
-		$proc.WaitForExit()
+	if ($AllUsers) {
+		$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat"
+	} else {
+		$RegistryPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat"
 	}
 
-	# Remove via AppxPackage
-	Write-Output "Removing Teams AppxPackage..."
-	Get-AppxPackage "*Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
-	Get-AppxPackage "*Teams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-
-	# Delete Teams directory
-	Write-Output "Deleting Teams directory"
-	if ([System.IO.Directory]::Exists($TeamsPath)) {
-		Remove-Item $TeamsPath -Force -Recurse -ErrorAction SilentlyContinue
+	if ($EnableChatWidget) {
+		$WhatChanged = "enabled"
+		if (Test-Path $RegistryPath) {
+			Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 1 -Type DWord -Force
+		} else {
+			New-Item -Path $RegistryPath | Out-Null
+			Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 1 -Type DWord -Force
+		}
+	} elseif ($DisableChatWidget) {
+		$WhatChanged = "disabled"
+		if (Test-Path $RegistryPath) {
+			Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 3 -Type DWord -Force
+		} else {
+			New-Item -Path $RegistryPath | Out-Null
+			Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 3 -Type DWord -Force
+		}
+	} elseif ($UnsetChatWidget) {
+		$WhatChanged = "unset"
+		if (Test-Path $RegistryPath) {
+			Remove-ItemProperty -Path $RegistryPath -Name "ChatIcon" -ErrorAction SilentlyContinue
+		}
 	}
 
-	# Uninstall from Uninstall registry key UninstallString
-	Write-Output "Deleting Teams uninstall registry key"
-	$us = getUninstallString("Teams");
-	if ($us.Length -gt 0) {
-		$us = ($us.Replace("/I", "/uninstall ") + " /quiet").Replace("  ", " ")
-		$FilePath = ($us.Substring(0, $us.IndexOf(".exe") + 4).Trim())
-		$ProcessArgs = ($us.Substring($us.IndexOf(".exe") + 5).Trim().replace("  ", " "))
-		$proc = Start-Process -FilePath $FilePath -Args $ProcessArgs -PassThru
-		$proc.WaitForExit()
+	if ($AllUsers) {
+		$AllUsersString = "all users"
+	} else {
+		$AllUsersString = "the current user"
 	}
+	Write-Output "Chat widget has been $WhatChanged for $AllUsersString."
+}
 
-	# Remove from startup registry key
-	Write-Output "Deleting Teams startup registry key"
-	Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+# Version
+$MyVersion = '1.0.0'
 
-	# Finished
-	Write-Output "Restart computer to complete uninstall"
-} catch {
-	# Show errors
-	Write-Output "Uninstall failed with exception $_.exception.message"
+# Check if -Version is specified
+if ($Version.IsPresent) {
+	$MyVersion
+	exit 0
+}
+
+# Check if -EnableChatWidget or -DisableChatWidget or -UnsetChatWidget is specified
+$IsEnableChatWidget = $EnableChatWidget -and (-not $DisableChatWidget) -and (-not $UnsetChatWidget)
+$IsDisableChatWidget = $DisableChatWidget -and (-not $EnableChatWidget) -and (-not $UnsetChatWidget)
+$IsUnsetChatWidget = $UnsetChatWidget -and (-not $EnableChatWidget) -and (-not $DisableChatWidget)
+
+# Check if -AllUsers is specified without -EnableChatWidget or -DisableChatWidget or -UnsetChatWidget
+if ($AllUsers -and (-not $IsEnableChatWidget) -and (-not $IsDisableChatWidget) -and (-not $IsUnsetChatWidget)) {
+	Write-Error "The -AllUsers switch can only be used with -EnableChatWidget, -DisableChatWidget, or -UnsetChatWidget. UninstallTeams will always remove Teams for the local machine."
 	exit 1
 }
-# SIG # Begin signature block
-# MIIpMAYJKoZIhvcNAQcCoIIpITCCKR0CAQExDzANBglghkgBZQMEAgEFADB5Bgor
-# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDn0cAhUD9jq2l1
-# R+WIsPsTtuqjGvFOV5uaA+ecQQihtKCCDh8wggawMIIEmKADAgECAhAIrUCyYNKc
-# TJ9ezam9k67ZMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
-# EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
-# BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0yMTA0MjkwMDAwMDBaFw0z
-# NjA0MjgyMzU5NTlaMGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
-# SW5jLjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBDb2RlIFNpZ25pbmcg
-# UlNBNDA5NiBTSEEzODQgMjAyMSBDQTEwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAw
-# ggIKAoICAQDVtC9C0CiteLdd1TlZG7GIQvUzjOs9gZdwxbvEhSYwn6SOaNhc9es0
-# JAfhS0/TeEP0F9ce2vnS1WcaUk8OoVf8iJnBkcyBAz5NcCRks43iCH00fUyAVxJr
-# Q5qZ8sU7H/Lvy0daE6ZMswEgJfMQ04uy+wjwiuCdCcBlp/qYgEk1hz1RGeiQIXhF
-# LqGfLOEYwhrMxe6TSXBCMo/7xuoc82VokaJNTIIRSFJo3hC9FFdd6BgTZcV/sk+F
-# LEikVoQ11vkunKoAFdE3/hoGlMJ8yOobMubKwvSnowMOdKWvObarYBLj6Na59zHh
-# 3K3kGKDYwSNHR7OhD26jq22YBoMbt2pnLdK9RBqSEIGPsDsJ18ebMlrC/2pgVItJ
-# wZPt4bRc4G/rJvmM1bL5OBDm6s6R9b7T+2+TYTRcvJNFKIM2KmYoX7BzzosmJQay
-# g9Rc9hUZTO1i4F4z8ujo7AqnsAMrkbI2eb73rQgedaZlzLvjSFDzd5Ea/ttQokbI
-# YViY9XwCFjyDKK05huzUtw1T0PhH5nUwjewwk3YUpltLXXRhTT8SkXbev1jLchAp
-# QfDVxW0mdmgRQRNYmtwmKwH0iU1Z23jPgUo+QEdfyYFQc4UQIyFZYIpkVMHMIRro
-# OBl8ZhzNeDhFMJlP/2NPTLuqDQhTQXxYPUez+rbsjDIJAsxsPAxWEQIDAQABo4IB
-# WTCCAVUwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUaDfg67Y7+F8Rhvv+
-# YXsIiGX0TkIwHwYDVR0jBBgwFoAU7NfjgtJxXWRM3y5nP+e6mK4cD08wDgYDVR0P
-# AQH/BAQDAgGGMBMGA1UdJQQMMAoGCCsGAQUFBwMDMHcGCCsGAQUFBwEBBGswaTAk
-# BggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMEEGCCsGAQUFBzAC
-# hjVodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkUm9v
-# dEc0LmNydDBDBgNVHR8EPDA6MDigNqA0hjJodHRwOi8vY3JsMy5kaWdpY2VydC5j
-# b20vRGlnaUNlcnRUcnVzdGVkUm9vdEc0LmNybDAcBgNVHSAEFTATMAcGBWeBDAED
-# MAgGBmeBDAEEATANBgkqhkiG9w0BAQwFAAOCAgEAOiNEPY0Idu6PvDqZ01bgAhql
-# +Eg08yy25nRm95RysQDKr2wwJxMSnpBEn0v9nqN8JtU3vDpdSG2V1T9J9Ce7FoFF
-# UP2cvbaF4HZ+N3HLIvdaqpDP9ZNq4+sg0dVQeYiaiorBtr2hSBh+3NiAGhEZGM1h
-# mYFW9snjdufE5BtfQ/g+lP92OT2e1JnPSt0o618moZVYSNUa/tcnP/2Q0XaG3Ryw
-# YFzzDaju4ImhvTnhOE7abrs2nfvlIVNaw8rpavGiPttDuDPITzgUkpn13c5Ubdld
-# AhQfQDN8A+KVssIhdXNSy0bYxDQcoqVLjc1vdjcshT8azibpGL6QB7BDf5WIIIJw
-# 8MzK7/0pNVwfiThV9zeKiwmhywvpMRr/LhlcOXHhvpynCgbWJme3kuZOX956rEnP
-# LqR0kq3bPKSchh/jwVYbKyP/j7XqiHtwa+aguv06P0WmxOgWkVKLQcBIhEuWTatE
-# QOON8BUozu3xGFYHKi8QxAwIZDwzj64ojDzLj4gLDb879M4ee47vtevLt/B3E+bn
-# KD+sEq6lLyJsQfmCXBVmzGwOysWGw/YmMwwHS6DTBwJqakAwSEs0qFEgu60bhQji
-# WQ1tygVQK+pKHJ6l/aCnHwZ05/LWUpD9r4VIIflXO7ScA+2GRfS0YW6/aOImYIbq
-# yK+p/pQd52MbOoZWeE4wggdnMIIFT6ADAgECAhAN0Uk2zX4f3m8X7HdlwxBNMA0G
-# CSqGSIb3DQEBCwUAMGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
-# SW5jLjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBDb2RlIFNpZ25pbmcg
-# UlNBNDA5NiBTSEEzODQgMjAyMSBDQTEwHhcNMjMwMzE3MDAwMDAwWhcNMjQwMzE2
-# MjM1OTU5WjBvMQswCQYDVQQGEwJVUzERMA8GA1UECBMIT2tsYWhvbWExETAPBgNV
-# BAcTCE11c2tvZ2VlMRwwGgYDVQQKExNBc2hlciBTb2x1dGlvbnMgSW5jMRwwGgYD
-# VQQDExNBc2hlciBTb2x1dGlvbnMgSW5jMIICIjANBgkqhkiG9w0BAQEFAAOCAg8A
-# MIICCgKCAgEA081RwO7808Fuab0RP0L2gthlZB8fiiGUBpnqJhsD1Bzpk+45B2LA
-# qmrUp+nZIXNwr5me/55enGI9CkhaxmZoFhBxoM1u5lODNp8GaAYzIEi0IJldzZ9y
-# PAQMfhTkHRiOwKBqTGO3h/gSZtaZ+8F+ltCmlXvv2vpqFpt5JL+uJm9SRIN5WLiP
-# QM/isjYR+eIcaZxQeHLfbnemNcaT4cXOMChUsmG6WsoHZO1o76dCN+owz23koLy2
-# Y1R3N2PMQj3kj8Bnlph6ffNnitKhXuwj3NkWwPSSQvYhcBuTcCOxpXpUjWlQNuTt
-# llTHp9leKMq11raPkSaLe2qVX4eBc6HPtBT+7XagpaA409d7fmYTOLKmE0BCEdgb
-# YZzYmKSyjrAgWlU9SYxurhFgHuQFD0CsBW1aXl6IEjn26cVx+hmj2KCOFELAdh1r
-# 9UTNt37a/o/TYCp/mQ22/oa/224is1dpNj7RAHnNaix5n8RKKHufEh85lVjS/cBn
-# 7z3cCKejyfBaUGK10SUwZKJiJ51DKkRkdh4A5cL85wKkQcFnRpfT/T+KTOEYRFT/
-# vz3uK9bMLwuBj+gkP3WnlVXf67IY3FfZaQUDNdtwur4UTGrDQOn8Xl2rEy7L9VlJ
-# UOCjX93WfW0B1Q4IxSdF6vIJw1m44HpIU4jxnqTBEo6BVVRCtdmp/x0CAwEAAaOC
-# AgMwggH/MB8GA1UdIwQYMBaAFGg34Ou2O/hfEYb7/mF7CIhl9E5CMB0GA1UdDgQW
-# BBTH3/U7rGshoJKjtOAVqNAEWJ/PBDAOBgNVHQ8BAf8EBAMCB4AwEwYDVR0lBAww
-# CgYIKwYBBQUHAwMwgbUGA1UdHwSBrTCBqjBToFGgT4ZNaHR0cDovL2NybDMuZGln
-# aWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZEc0Q29kZVNpZ25pbmdSU0E0MDk2U0hB
-# Mzg0MjAyMUNBMS5jcmwwU6BRoE+GTWh0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9E
-# aWdpQ2VydFRydXN0ZWRHNENvZGVTaWduaW5nUlNBNDA5NlNIQTM4NDIwMjFDQTEu
-# Y3JsMD4GA1UdIAQ3MDUwMwYGZ4EMAQQBMCkwJwYIKwYBBQUHAgEWG2h0dHA6Ly93
-# d3cuZGlnaWNlcnQuY29tL0NQUzCBlAYIKwYBBQUHAQEEgYcwgYQwJAYIKwYBBQUH
-# MAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBcBggrBgEFBQcwAoZQaHR0cDov
-# L2NhY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZEc0Q29kZVNpZ25p
-# bmdSU0E0MDk2U0hBMzg0MjAyMUNBMS5jcnQwCQYDVR0TBAIwADANBgkqhkiG9w0B
-# AQsFAAOCAgEAQtDUmTp7UG2w4A4WaT6BoMLBLqzm09S64nFfuIUFjWk3KTCStpwR
-# 3KzwG78CpYb7I0G6T7O2Emv+u0WgKVaWPbLFlnrjXXB+68DxR+CFWh6UDioz/9wo
-# +eD/V2eKilAc2WSEIC8NzXT3C4yEtxUmnebK7Ysxy4qLlb4Sxk9NspS+Lg3jKBxb
-# ExduQWHi1ytqw9NCghzK1Y2h5/AHwSYfwz7AyRerN3gTwzmmgTaWYEHVCL0NQddO
-# 1lkSz6LPq2/JWHns7I0tNPCT5nZYva1v34EZvP9+P+SUDBH8bfrm6HlTd+Z6qNW5
-# ACsALaCCAsZRQ6i7UZfjolD/lADn65f46XfnNMIo8PPpagFBIvxg03DGDJQu4QnY
-# AyZhtrLDxc8VLtGZP8QVBf9JVcjVD8FxMMobDnuDq0YZ1h3ydRo1dqOzWVDipp0i
-# oPd0UbL7EcZr6QcM72LWFvAACyVcIiXlh5jY+JehqaZMlS9aw4WQT0gpvBOaOJqb
-# vGoAbtyHRFIkFbJG/Wxkpr+VkU1JvilXCh8g0OsXwvJk4dK4GeBVa7VLlq95fLiK
-# zL54EZDTY1W+YfKYUseiptRlu5XBUn15C9rTpqDZhHFz6exyLfYcJzdxJJdArjio
-# UKKR9ZhLfxm1bmFMb8NPWOKH/ZI6vR0jNgwalk3nTx63ZnVAOJLH+BkxghpnMIIa
-# YwIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjFB
-# MD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBDb2RlIFNpZ25pbmcgUlNBNDA5
-# NiBTSEEzODQgMjAyMSBDQTECEA3RSTbNfh/ebxfsd2XDEE0wDQYJYIZIAWUDBAIB
-# BQCgfDAQBgorBgEEAYI3AgEMMQIwADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIB
-# BDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQg
-# CankwaybgUUQPhEutL4Cp/Mp0CmfTUwjj8Yqpxm0LNMwDQYJKoZIhvcNAQEBBQAE
-# ggIApOla0fE0wTNsXTDskhUWgx7njgZI4/ZRTQSaiNRNVRFkzjpd+i9nCOQcZpzy
-# px8AwLlCpxl8stisDszwcMPs4g8AFKkts3ysv4s5JiiTGEteYovWfLAnKlUY1GZK
-# Lu7oPqBgDztAd6PP/4hHav/3IbBAgqCwIRjrb8TKLgHvvnXUQKwK9owTHuDNsIm5
-# 7P496EO9Tv/sxmsso1HpqehQSnt6TuWzWlxjV7B5Cm0D7Fr99+AjJbuch+nqBj/2
-# xRqUQ8bPdX+WLHaeIN/0nF7C4E+k7Hcedi2wpbedK8tjalt0414OQ6FIuFbEWEcQ
-# AiN8xvE6LQDYPwlh36yA0tATeV7AtPioFhWIml9xC7y6+ebGJDgBz3Ux7l/r3Y9s
-# lCHhlg+6sIrDRTKuB/y+5Uq1j9TF/wJUQwl18IRt7KraNnPKCtUPh3w1LrLgN2sz
-# Q8O4zqsd/a4evtjUXkVSd3usARIb9kZ7Hkac8OKcsLa9TVS/lsHINWdpfh6XEJHj
-# 3eoFyScv/cnLyg8aIzcaygEudHUQiWFWsXAxBRR/Ge122pmjyJ/0Vs0m5JFYEu01
-# 3DyqfZM5x6cVIAsMrxC8PqnEJYfj1ShNmdSuSuZ/nMfOcHM4Mw151IAtUOl+GNPt
-# MYkd73yMssXRFjbtOhrljJsbJc7ZmknEoXD6qUkcNyv+uBuhghc9MIIXOQYKKwYB
-# BAGCNwMDATGCFykwghclBgkqhkiG9w0BBwKgghcWMIIXEgIBAzEPMA0GCWCGSAFl
-# AwQCAQUAMHcGCyqGSIb3DQEJEAEEoGgEZjBkAgEBBglghkgBhv1sBwEwMTANBglg
-# hkgBZQMEAgEFAAQgLpDMMeno1vujksKGaQP0dtcbHzwAvfzJBtzkkjuMHiICECP9
-# 61POxCP8Fyy/Hh66i1MYDzIwMjMwNTAyMTgzODU3WqCCEwcwggbAMIIEqKADAgEC
-# AhAMTWlyS5T6PCpKPSkHgD1aMA0GCSqGSIb3DQEBCwUAMGMxCzAJBgNVBAYTAlVT
-# MRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UEAxMyRGlnaUNlcnQgVHJ1
-# c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBpbmcgQ0EwHhcNMjIwOTIx
-# MDAwMDAwWhcNMzMxMTIxMjM1OTU5WjBGMQswCQYDVQQGEwJVUzERMA8GA1UEChMI
-# RGlnaUNlcnQxJDAiBgNVBAMTG0RpZ2lDZXJ0IFRpbWVzdGFtcCAyMDIyIC0gMjCC
-# AiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAM/spSY6xqnya7uNwQ2a26Ho
-# FIV0MxomrNAcVR4eNm28klUMYfSdCXc9FZYIL2tkpP0GgxbXkZI4HDEClvtysZc6
-# Va8z7GGK6aYo25BjXL2JU+A6LYyHQq4mpOS7eHi5ehbhVsbAumRTuyoW51BIu4hp
-# DIjG8b7gL307scpTjUCDHufLckkoHkyAHoVW54Xt8mG8qjoHffarbuVm3eJc9S/t
-# jdRNlYRo44DLannR0hCRRinrPibytIzNTLlmyLuqUDgN5YyUXRlav/V7QG5vFqia
-# nJVHhoV5PgxeZowaCiS+nKrSnLb3T254xCg/oxwPUAY3ugjZNaa1Htp4WB056PhM
-# kRCWfk3h3cKtpX74LRsf7CtGGKMZ9jn39cFPcS6JAxGiS7uYv/pP5Hs27wZE5FX/
-# NurlfDHn88JSxOYWe1p+pSVz28BqmSEtY+VZ9U0vkB8nt9KrFOU4ZodRCGv7U0M5
-# 0GT6Vs/g9ArmFG1keLuY/ZTDcyHzL8IuINeBrNPxB9ThvdldS24xlCmL5kGkZZTA
-# WOXlLimQprdhZPrZIGwYUWC6poEPCSVT8b876asHDmoHOWIZydaFfxPZjXnPYsXs
-# 4Xu5zGcTB5rBeO3GiMiwbjJ5xwtZg43G7vUsfHuOy2SJ8bHEuOdTXl9V0n0ZKVkD
-# Tvpd6kVzHIR+187i1Dp3AgMBAAGjggGLMIIBhzAOBgNVHQ8BAf8EBAMCB4AwDAYD
-# VR0TAQH/BAIwADAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDAgBgNVHSAEGTAXMAgG
-# BmeBDAEEAjALBglghkgBhv1sBwEwHwYDVR0jBBgwFoAUuhbZbU2FL3MpdpovdYxq
-# II+eyG8wHQYDVR0OBBYEFGKK3tBh/I8xFO2XC809KpQU31KcMFoGA1UdHwRTMFEw
-# T6BNoEuGSWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRH
-# NFJTQTQwOTZTSEEyNTZUaW1lU3RhbXBpbmdDQS5jcmwwgZAGCCsGAQUFBwEBBIGD
-# MIGAMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wWAYIKwYB
-# BQUHMAKGTGh0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0
-# ZWRHNFJTQTQwOTZTSEEyNTZUaW1lU3RhbXBpbmdDQS5jcnQwDQYJKoZIhvcNAQEL
-# BQADggIBAFWqKhrzRvN4Vzcw/HXjT9aFI/H8+ZU5myXm93KKmMN31GT8Ffs2wklR
-# LHiIY1UJRjkA/GnUypsp+6M/wMkAmxMdsJiJ3HjyzXyFzVOdr2LiYWajFCpFh0qY
-# QitQ/Bu1nggwCfrkLdcJiXn5CeaIzn0buGqim8FTYAnoo7id160fHLjsmEHw9g6A
-# ++T/350Qp+sAul9Kjxo6UrTqvwlJFTU2WZoPVNKyG39+XgmtdlSKdG3K0gVnK3br
-# /5iyJpU4GYhEFOUKWaJr5yI+RCHSPxzAm+18SLLYkgyRTzxmlK9dAlPrnuKe5NMf
-# hgFknADC6Vp0dQ094XmIvxwBl8kZI4DXNlpflhaxYwzGRkA7zl011Fk+Q5oYrsPJ
-# y8P7mxNfarXH4PMFw1nfJ2Ir3kHJU7n/NBBn9iYymHv+XEKUgZSCnawKi8ZLFUrT
-# mJBFYDOA4CPe+AOk9kVH5c64A0JH6EE2cXet/aLol3ROLtoeHYxayB6a1cLwxiKo
-# T5u92ByaUcQvmvZfpyeXupYuhVfAYOd4Vn9q78KVmksRAsiCnMkaBXy6cbVOepls
-# 9Oie1FqYyJ+/jbsYXEP10Cro4mLueATbvdH7WwqocH7wl4R44wgDXUcsY6glOJcB
-# 0j862uXl9uab3H4szP8XTE0AotjWAQ64i+7m4HJViSwnGWH2dwGMMIIGrjCCBJag
-# AwIBAgIQBzY3tyRUfNhHrP0oZipeWzANBgkqhkiG9w0BAQsFADBiMQswCQYDVQQG
-# EwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNl
-# cnQuY29tMSEwHwYDVQQDExhEaWdpQ2VydCBUcnVzdGVkIFJvb3QgRzQwHhcNMjIw
-# MzIzMDAwMDAwWhcNMzcwMzIyMjM1OTU5WjBjMQswCQYDVQQGEwJVUzEXMBUGA1UE
-# ChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQg
-# UlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENBMIICIjANBgkqhkiG9w0BAQEF
-# AAOCAg8AMIICCgKCAgEAxoY1BkmzwT1ySVFVxyUDxPKRN6mXUaHW0oPRnkyibaCw
-# zIP5WvYRoUQVQl+kiPNo+n3znIkLf50fng8zH1ATCyZzlm34V6gCff1DtITaEfFz
-# sbPuK4CEiiIY3+vaPcQXf6sZKz5C3GeO6lE98NZW1OcoLevTsbV15x8GZY2UKdPZ
-# 7Gnf2ZCHRgB720RBidx8ald68Dd5n12sy+iEZLRS8nZH92GDGd1ftFQLIWhuNyG7
-# QKxfst5Kfc71ORJn7w6lY2zkpsUdzTYNXNXmG6jBZHRAp8ByxbpOH7G1WE15/teP
-# c5OsLDnipUjW8LAxE6lXKZYnLvWHpo9OdhVVJnCYJn+gGkcgQ+NDY4B7dW4nJZCY
-# OjgRs/b2nuY7W+yB3iIU2YIqx5K/oN7jPqJz+ucfWmyU8lKVEStYdEAoq3NDzt9K
-# oRxrOMUp88qqlnNCaJ+2RrOdOqPVA+C/8KI8ykLcGEh/FDTP0kyr75s9/g64ZCr6
-# dSgkQe1CvwWcZklSUPRR8zZJTYsg0ixXNXkrqPNFYLwjjVj33GHek/45wPmyMKVM
-# 1+mYSlg+0wOI/rOP015LdhJRk8mMDDtbiiKowSYI+RQQEgN9XyO7ZONj4KbhPvbC
-# dLI/Hgl27KtdRnXiYKNYCQEoAA6EVO7O6V3IXjASvUaetdN2udIOa5kM0jO0zbEC
-# AwEAAaOCAV0wggFZMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFLoW2W1N
-# hS9zKXaaL3WMaiCPnshvMB8GA1UdIwQYMBaAFOzX44LScV1kTN8uZz/nupiuHA9P
-# MA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAKBggrBgEFBQcDCDB3BggrBgEFBQcB
-# AQRrMGkwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBBBggr
-# BgEFBQcwAoY1aHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1
-# c3RlZFJvb3RHNC5jcnQwQwYDVR0fBDwwOjA4oDagNIYyaHR0cDovL2NybDMuZGln
-# aWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZFJvb3RHNC5jcmwwIAYDVR0gBBkwFzAI
-# BgZngQwBBAIwCwYJYIZIAYb9bAcBMA0GCSqGSIb3DQEBCwUAA4ICAQB9WY7Ak7Zv
-# mKlEIgF+ZtbYIULhsBguEE0TzzBTzr8Y+8dQXeJLKftwig2qKWn8acHPHQfpPmDI
-# 2AvlXFvXbYf6hCAlNDFnzbYSlm/EUExiHQwIgqgWvalWzxVzjQEiJc6VaT9Hd/ty
-# dBTX/6tPiix6q4XNQ1/tYLaqT5Fmniye4Iqs5f2MvGQmh2ySvZ180HAKfO+ovHVP
-# ulr3qRCyXen/KFSJ8NWKcXZl2szwcqMj+sAngkSumScbqyQeJsG33irr9p6xeZmB
-# o1aGqwpFyd/EjaDnmPv7pp1yr8THwcFqcdnGE4AJxLafzYeHJLtPo0m5d2aR8XKc
-# 6UsCUqc3fpNTrDsdCEkPlM05et3/JWOZJyw9P2un8WbDQc1PtkCbISFA0LcTJM3c
-# HXg65J6t5TRxktcma+Q4c6umAU+9Pzt4rUyt+8SVe+0KXzM5h0F4ejjpnOHdI/0d
-# KNPH+ejxmF/7K9h+8kaddSweJywm228Vex4Ziza4k9Tm8heZWcpw8De/mADfIBZP
-# J/tgZxahZrrdVcA6KYawmKAr7ZVBtzrVFZgxtGIJDwq9gdkT/r+k0fNX2bwE+oLe
-# Mt8EifAAzV3C+dAjfwAL5HYCJtnwZXZCpimHCUcr5n8apIUP/JiW9lVUKx+A+sDy
-# Divl1vupL0QVSucTDh3bNzgaoSv27dZ8/DCCBY0wggR1oAMCAQICEA6bGI750C3n
-# 79tQ4ghAGFowDQYJKoZIhvcNAQEMBQAwZTELMAkGA1UEBhMCVVMxFTATBgNVBAoT
-# DERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEkMCIGA1UE
-# AxMbRGlnaUNlcnQgQXNzdXJlZCBJRCBSb290IENBMB4XDTIyMDgwMTAwMDAwMFoX
-# DTMxMTEwOTIzNTk1OVowYjELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0
-# IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEhMB8GA1UEAxMYRGlnaUNl
-# cnQgVHJ1c3RlZCBSb290IEc0MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKC
-# AgEAv+aQc2jeu+RdSjwwIjBpM+zCpyUuySE98orYWcLhKac9WKt2ms2uexuEDcQw
-# H/MbpDgW61bGl20dq7J58soR0uRf1gU8Ug9SH8aeFaV+vp+pVxZZVXKvaJNwwrK6
-# dZlqczKU0RBEEC7fgvMHhOZ0O21x4i0MG+4g1ckgHWMpLc7sXk7Ik/ghYZs06wXG
-# XuxbGrzryc/NrDRAX7F6Zu53yEioZldXn1RYjgwrt0+nMNlW7sp7XeOtyU9e5TXn
-# Mcvak17cjo+A2raRmECQecN4x7axxLVqGDgDEI3Y1DekLgV9iPWCPhCRcKtVgkEy
-# 19sEcypukQF8IUzUvK4bA3VdeGbZOjFEmjNAvwjXWkmkwuapoGfdpCe8oU85tRFY
-# F/ckXEaPZPfBaYh2mHY9WV1CdoeJl2l6SPDgohIbZpp0yt5LHucOY67m1O+Skjqe
-# PdwA5EUlibaaRBkrfsCUtNJhbesz2cXfSwQAzH0clcOP9yGyshG3u3/y1YxwLEFg
-# qrFjGESVGnZifvaAsPvoZKYz0YkH4b235kOkGLimdwHhD5QMIR2yVCkliWzlDlJR
-# R3S+Jqy2QXXeeqxfjT/JvNNBERJb5RBQ6zHFynIWIgnffEx1P2PsIV/EIFFrb7Gr
-# hotPwtZFX50g/KEexcCPorF+CiaZ9eRpL5gdLfXZqbId5RsCAwEAAaOCATowggE2
-# MA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFOzX44LScV1kTN8uZz/nupiuHA9P
-# MB8GA1UdIwQYMBaAFEXroq/0ksuCMS1Ri6enIZ3zbcgPMA4GA1UdDwEB/wQEAwIB
-# hjB5BggrBgEFBQcBAQRtMGswJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2lj
-# ZXJ0LmNvbTBDBggrBgEFBQcwAoY3aHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29t
-# L0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNydDBFBgNVHR8EPjA8MDqgOKA2hjRo
-# dHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0Eu
-# Y3JsMBEGA1UdIAQKMAgwBgYEVR0gADANBgkqhkiG9w0BAQwFAAOCAQEAcKC/Q1xV
-# 5zhfoKN0Gz22Ftf3v1cHvZqsoYcs7IVeqRq7IviHGmlUIu2kiHdtvRoU9BNKei8t
-# tzjv9P+Aufih9/Jy3iS8UgPITtAq3votVs/59PesMHqai7Je1M/RQ0SbQyHrlnKh
-# SLSZy51PpwYDE3cnRNTnf+hZqPC/Lwum6fI0POz3A8eHqNJMQBk1RmppVLC4oVaO
-# 7KTVPeix3P0c2PR3WlxUjG/voVA9/HYJaISfb8rbII01YBwCA8sgsKxYoA5AY8WY
-# IsGyWfVVa88nq2x2zm8jLfR+cWojayL/ErhULSd+2DrZ8LaHlv1b0VysGMNNn3O3
-# AamfV6peKOK5lDGCA3YwggNyAgEBMHcwYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoT
-# DkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBUcnVzdGVkIEc0IFJT
-# QTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQDE1pckuU+jwqSj0pB4A9WjAN
-# BglghkgBZQMEAgEFAKCB0TAaBgkqhkiG9w0BCQMxDQYLKoZIhvcNAQkQAQQwHAYJ
-# KoZIhvcNAQkFMQ8XDTIzMDUwMjE4Mzg1N1owKwYLKoZIhvcNAQkQAgwxHDAaMBgw
-# FgQU84ciTYYzgpI1qZS8vY+W6f4cfHMwLwYJKoZIhvcNAQkEMSIEIHA3ae627Mx/
-# spc3LVmx3aAzwVRJCQZTFsqHW4IE2qZ1MDcGCyqGSIb3DQEJEAIvMSgwJjAkMCIE
-# IMf04b4yKIkgq+ImOr4axPxP5ngcLWTQTIB1V6Ajtbb6MA0GCSqGSIb3DQEBAQUA
-# BIICAD1Vro8rArhVcw/zIuZNLtLIdQPVCUkNy+yK6wDITljuzG2xPAVHm4HxkF9F
-# UHKPolwg3XYUYz1mfNWcGAJ+4uKHc7sTsU2KFezv5IaO4pc4aq6gZS0+H/0ROpEe
-# 4kKmrM9RVZJpKDjpzEbA5qu6fI+1azpBqevM2CFSwLvxxt5dhMh60+Gf7rhMUf0k
-# GX+4QPSSmQyqyAheTlY+TZACwzaV3WKYOXkPGG4TZPyftqCJYS1X5f8s0qELJ5oy
-# CNJGqAG4vsprSmdTDvo2VgCd0dT8dD3wae61/d4ohkDO1ypL7+MFLUmB7jJ9CHJC
-# W3HrtyOhcnUKRTso2Y3+BgUgkL+I9BGmAF+kzUITJopoJ33bjm9ZJoE2FsAp0nUF
-# N51mPIxutklX2YokAuUcLfxXPF0y0kDF5ZHxO1aSidxclSvojgvp+4XDtfX82IQB
-# vpNtD/iogDgbWdrQT9YSA3W2QyOj/GJLqBwdEzAOmPzmxoeUa1yG5ZZ4FWVZbNEY
-# iRGJX/Mp01kEe9EzVQltBIe4nIoE3JOiIJ3gw0Faeb9ko40qBH08d8DpjfXVd0Rk
-# SfAhBA7S79tYdx57bLuG44TIqozVvACyW6nZ4KIzZb8pRwwndmXMEkJnPYdLL9RZ
-# Ncs+S+4mNJVtENCQ4FKFc5hIjJ2FEb/El/I5H+fUZzY+OY53
-# SIG # End signature block
+
+# Check if -EnableChatWidget and -DisableChatWidget and -UnsetChatWidget are used together
+if (($IsEnableChatWidget -and $IsDisableChatWidget) -or ($IsEnableChatWidget -and $IsUnsetChatWidget) -or ($IsDisableChatWidget -and $IsUnsetChatWidget)) {
+	Write-Warning "You cannot enable, disable, and unset the Chat widget at the same time. Please choose either -EnableChatWidget, -DisableChatWidget, or -UnsetChatWidget."
+	exit 1
+}
+
+try {
+	# Spacer
+	Write-Output ""
+
+	# Update note
+	$ScriptPath = $MyInvocation.MyCommand.Path
+	$ScriptVersion = (Get-Command $ScriptPath).FileVersionInfo.ProductVersion
+	Write-Output "The current version of this script is $ScriptVersion. To update to the latest version, run 'Update-Script UninstallTeams -Force'."
+
+	# Spacer
+	Write-Output ""
+
+	if ($IsEnableChatWidget) {
+		Set-ChatWidgetStatus -EnableChatWidget -AllUsers:$AllUsers
+	} elseif ($IsDisableChatWidget) {
+		Set-ChatWidgetStatus -DisableChatWidget -AllUsers:$AllUsers
+	} elseif ($IsUnsetChatWidget) {
+		Set-ChatWidgetStatus -UnsetChatWidget -AllUsers:$AllUsers
+	} else {
+
+		# Stopping Teams process
+		Write-Output "Stopping Teams process..."
+		Stop-Process -Name "*teams*" -Force -ErrorAction SilentlyContinue
+
+		# Uninstall from AppData\Microsoft\Teams
+		$TeamsUpdateExePath = Join-Path $env:APPDATA "Microsoft\Teams\Update.exe"
+		Write-Output "Uninstalling Teams from AppData\Microsoft\Teams"
+		if (Test-Path $TeamsUpdateExePath) {
+			$proc = Start-Process -FilePath $TeamsUpdateExePath -ArgumentList "-uninstall -s" -PassThru
+			$proc.WaitForExit()
+		}
+
+		# Remove via AppxPackage
+		Write-Output "Removing Teams AppxPackage..."
+		Get-AppxPackage "*Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
+		Get-AppxPackage "*Teams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+
+		# Delete Teams directory
+		$TeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Teams"
+		Write-Output "Deleting Teams directory"
+		if (Test-Path $TeamsPath) {
+			Remove-Item -Path $TeamsPath -Force -Recurse -ErrorAction SilentlyContinue
+		}
+
+		# Uninstall from Uninstall registry key UninstallString
+		function GetUninstallString {
+			param (
+				[string]$Match
+			)
+
+			$key = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall" | Get-Item
+			$subkeys = $key | Get-ChildItem | Where-Object { $_.GetValue("DisplayName") -match $Match }
+			$subkeys | ForEach-Object { $_.GetValue("UninstallString") }
+		}
+
+		Write-Output "Deleting Teams uninstall registry key"
+		$uninstallString = GetUninstallString -Match "Teams"
+		if (-not [string]::IsNullOrWhiteSpace($uninstallString)) {
+			$uninstallArgs = ($uninstallString.Replace("/I", "/uninstall ") + " /quiet").Replace("  ", " ")
+			$proc = Start-Process -FilePath $uninstallArgs.Split(" ")[0] -ArgumentList $uninstallArgs.Split(" ")[1..$uninstallArgs.Length] -PassThru
+			$proc.WaitForExit()
+		}
+
+		# Remove from startup registry key
+		Write-Output "Deleting Teams startup registry key"
+		Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+	}
+} catch {
+	Write-Error "An error occurred during the Teams uninstallation process: $_"
+	exit 1
+}
+
+# Output the status of both the current user and the local machine
+$CurrentUserStatus = Get-ChatWidgetStatus
+$LocalMachineStatus = Get-ChatWidgetStatus -AllUsers
+
+# Chat widget status
+Write-Output ""
+Write-Output "Chat widget status:"
+Write-Output "Current User Status: $CurrentUserStatus"
+Write-Output "Local Machine Status: $LocalMachineStatus"
+
+# If either status is "Enabled" show a warning
+if (($CurrentUserStatus -eq "Enabled") -or ($LocalMachineStatus -eq "Enabled")) {
+	Write-Warning "Teams Chat widget is enabled. Teams could be reinstalled if the user clicks 'Continue' by using Win+C or by clicking the Chat icon in the taskbar (if enabled). Use the '-DisableChatWidget' or '-DisableChatWidget -AllUsers' switch to disable it. Use 'Get-Help UninstallTeams -Full' for more information."
+}
+
+# Spacer
+Write-Output ""
