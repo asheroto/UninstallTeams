@@ -194,7 +194,7 @@ if ($Help) {
 
 # Check for updates
 if ($CheckForUpdates) {
-	$Data = Check-GitHubRelease
+	$Data = Check-GitHubRelease -Owner "asheroto" -Repo "UninstallTeams"
 	$LatestVersion = $Data.LatestVersion
 	$PublishedAt = $Data.PublishedAt
 
