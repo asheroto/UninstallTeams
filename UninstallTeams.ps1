@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.2
+.VERSION 1.0.3
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -15,8 +15,9 @@
 [Version 0.0.7] - Added removal AppxPackage.
 [Version 0.0.8] - Added removal of startup entries.
 [Version 1.0.0] - Added ability to optionally disable Chat widget (Win+C) which will reinstall Teams. Major refactor of code.
-[Version 1.0.2] - Added URL to -CheckForUpdates function when script is out of date.
+[Version 1.0.1] - Added URL to -CheckForUpdates function when script is out of date.
 [Version 1.0.2] - Improve description.
+[Version 1.0.3] - Fixed bug with -Version.
 #>
 
 <#
@@ -67,7 +68,7 @@ UninstallTeams.ps1 -UnsetChatWidget -AllUsers
 Removes the Chat widget key, effectively enabling it since that is the default, for all user profiles on the machine.
 
 .NOTES
-Version  : 1.0.2
+Version  : 1.0.3
 Created by   : asheroto
 
 .LINK
@@ -88,7 +89,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.0.2'
+$CurrentVersion = '1.0.3'
 
 # Check if -Version is specified
 if ($Version.IsPresent) {
@@ -203,10 +204,10 @@ if ($CheckForUpdates) {
 	$PublishedAt = $Data.PublishedAt
 
 	if ($LatestVersion -gt $CurrentVersion) {
-		Write-Output "A new version of UninstallTeams is available. Current version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedAt."
+		Write-Output "A new version of UninstallTeams is available.`nCurrent version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedAt."
 		Write-Output "You can download the latest version from https://github.com/asheroto/UninstallTeams/releases."
 	} else {
-		Write-Output "UninstallTeams is up to date. Current version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedAt."
+		Write-Output "UninstallTeams is up to date.`nCurrent version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedAt."
 	}
 	exit 0
 }
@@ -233,7 +234,7 @@ try {
 	Write-Output ""
 
 	# Update note
-	Write-Output "Uninstall Teams $ScriptVersion"
+	Write-Output "Uninstall Teams $CurrentVersion"
 	Write-Output "To check for updates, run UninstallTeams -CheckForUpdates"
 
 	# Spacer
