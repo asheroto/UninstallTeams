@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.1.0
+.VERSION 1.1.1
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -21,18 +21,17 @@
 [Version 1.0.4] - Improved CheckForUpdate function by converting time to local time and switching to variables.
 [Version 1.0.5] - Changed -CheckForUpdates to -CheckForUpdate.
 [Version 1.1.0] - Various bug fixes. Added removal of Desktop and Start Menu shortcuts. Added method to prevent Office from installing Teams. Added folders and registry keys to detect.
+[Version 1.1.1] - Improved Chat widget warning detection. Improved output into section headers.
 #>
 
 <#
 .SYNOPSIS
-Uninstalls Microsoft Teams and removes the Teams directory for a user.
+Uninstalls Microsoft Teams completely. Optional parameters to disable the Chat widget (Win+C) and prevent Office from installing Teams.
 
 .DESCRIPTION
-Uninstalls Microsoft Teams and removes the Teams directory for a user.
+Uninstalls Microsoft Teams completely. Optional parameters to disable the Chat widget (Win+C) and prevent Office from installing Teams.
 
-The script stops the Teams process, uninstalls Teams from the AppData directory, removes the Teams AppxPackage, deletes the Teams directory, uninstalls Teams from the Uninstall registry key, and removes Teams from the startup registry key.
-
-You can also adjust the status of the Chat widget (Win+C) by enabling, disabling, or unsetting (default / effectively enabling).
+The script stops the Teams process, uninstalls Teams using the uninstall key, uninstalls Teams from the Program Files (x86) directory, uninstalls Teams from the AppData directory, removes the Teams AppxPackage, deletes the Microsoft Teams directory in AppData, deletes the Teams directory in AppData, removes the startup registry keys for Teams, and removes the Desktop and Start Menu icons for Teams.
 
 .PARAMETER DisableChatWidget
 Disables the Chat widget (Win+C) for Microsoft Teams.
@@ -41,43 +40,58 @@ Disables the Chat widget (Win+C) for Microsoft Teams.
 Enables the Chat widget (Win+C) for Microsoft Teams.
 
 .PARAMETER UnsetChatWidget
-Removes the Chat widget key, effectively enabling it since that is the default.
+Removes the Chat widget registry value, effectively enabling it since that is the default.
 
 .PARAMETER AllUsers
 Applies the Chat widget setting to all user profiles on the machine.
 
-.PARAMETER BlockTeamsInstall
-Prevent Teams from installing again with Office.
+.PARAMETER DisableOfficeTeamsInstall
+Disable Office's ability to install Teams.
 
-.PARAMETER UnblockTeamsInstall
-Unprevent Teams from installing again with Office.
+.PARAMETER EnableOfficeTeamsInstall
+Enable Office's ability to install Teams.
+
+.PARAMETER UnsetOfficeTeamsInstall
+Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .EXAMPLE
-UninstallTeams.ps1 -DisableChatWidget
+UninstallTeams -DisableChatWidget
 Disables the Chat widget (Win+C) for Microsoft Teams.
 
 .EXAMPLE
-UninstallTeams.ps1 -EnableChatWidget
+UninstallTeams -EnableChatWidget
 Enables the Chat widget (Win+C) for Microsoft Teams.
 
 .EXAMPLE
-UninstallTeams.ps1 -UnsetChatWidget
-Removes the Chat widget key, effectively enabling it since that is the default.
+UninstallTeams -UnsetChatWidget
+Removes the Chat widget value, effectively enabling it since that is the default.
 
 .EXAMPLE
-UninstallTeams.ps1 -DisableChatWidget -AllUsers
+UninstallTeams -DisableChatWidget -AllUsers
 Disables the Chat widget (Win+C) for Microsoft Teams for all user profiles on the machine.
 
 .EXAMPLE
-UninstallTeams.ps1 -EnableChatWidget -AllUsers
+UninstallTeams -EnableChatWidget -AllUsers
 Enables the Chat widget (Win+C) for Microsoft Teams for all user profiles on the machine.
 
 .EXAMPLE
-UninstallTeams.ps1 -UnsetChatWidget -AllUsers
-Removes the Chat widget key, effectively enabling it since that is the default, for all user profiles on the machine.
+UninstallTeams -UnsetChatWidget -AllUsers
+Removes the Chat widget value, effectively enabling it since that is the default, for all user profiles on the machine.
+
+.EXAMPLE
+UninstallTeams -DisableOfficeTeamsInstall
+Disable Office's ability to install Teams.
+
+.EXAMPLE
+UninstallTeams -EnableOfficeTeamsInstall
+Enable Office's ability to install Teams.
+
+.EXAMPLE
+UninstallTeams -UnsetOfficeTeamsInstall
+Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.1.0
+Version  : 1.1.1
 Created by   : asheroto
 
 .LINK
@@ -101,13 +115,104 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.1.0'
+$CurrentVersion = '1.1.1'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
+$PowerShellGalleryName = 'UninstallTeams'
 
-# Check if -Version is specified
+# Versions
+$ProgressPreference = 'SilentlyContinue' # Suppress progress bar (makes downloading super fast)
+$ConfirmPreference = 'None' # Suppress confirmation prompts
+
+# Display version if -Version is specified
 if ($Version.IsPresent) {
     $CurrentVersion
+    exit 0
+}
+
+# Display full help if -Help is specified
+if ($Help) {
+    Get-Help -Name $MyInvocation.MyCommand.Source -Full
+    exit 0
+}
+
+# Display $PSVersionTable and Get-Host if -Verbose is specified
+if ($PSBoundParameters.ContainsKey('Verbose') -and $PSBoundParameters['Verbose']) {
+    $PSVersionTable
+    Get-Host
+}
+
+function Get-GitHubRelease {
+    <#
+        .SYNOPSIS
+        Fetches the latest release information of a GitHub repository.
+
+        .DESCRIPTION
+        This function uses the GitHub API to get information about the latest release of a specified repository, including its version and the date it was published.
+
+        .PARAMETER Owner
+        The GitHub username of the repository owner.
+
+        .PARAMETER Repo
+        The name of the repository.
+
+        .EXAMPLE
+        Get-GitHubRelease -Owner "asheroto" -Repo "winget-install"
+        This command retrieves the latest release version and published datetime of the winget-install repository owned by asheroto.
+    #>
+    [CmdletBinding()]
+    param (
+        [string]$Owner,
+        [string]$Repo
+    )
+    try {
+        $url = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
+        $response = Invoke-RestMethod -Uri $url -ErrorAction Stop
+
+        $latestVersion = $response.tag_name
+        $publishedAt = $response.published_at
+
+        # Convert UTC time string to local time
+        $UtcDateTime = [DateTime]::Parse($publishedAt, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        $PublishedLocalDateTime = $UtcDateTime.ToLocalTime()
+
+        [PSCustomObject]@{
+            LatestVersion     = $latestVersion
+            PublishedDateTime = $PublishedLocalDateTime
+        }
+    } catch {
+        Write-Error "Unable to check for updates.`nError: $_"
+        exit 1
+    }
+}
+
+function CheckForUpdate {
+    param (
+        [string]$RepoOwner,
+        [string]$RepoName,
+        [version]$CurrentVersion,
+        [string]$PowerShellGalleryName
+    )
+
+    $Data = Get-GitHubRelease -Owner $RepoOwner -Repo $RepoName
+
+    if ($Data.LatestVersion -gt $CurrentVersion) {
+        Write-Output "`nA new version of $RepoName is available.`n"
+        Write-Output "Current version: $CurrentVersion."
+        Write-Output "Latest version: $($Data.LatestVersion)."
+        Write-Output "Published at: $($Data.PublishedDateTime).`n"
+        Write-Output "You can download the latest version from https://github.com/$RepoOwner/$RepoName/releases`n"
+        if ($PowerShellGalleryName) {
+            Write-Output "Or you can run the following command to update:"
+            Write-Output "Install-Script $PowerShellGalleryName -Force`n"
+        }
+    } else {
+        Write-Output "`n$RepoName is up to date.`n"
+        Write-Output "Current version: $CurrentVersion."
+        Write-Output "Latest version: $($Data.LatestVersion)."
+        Write-Output "Published at: $($Data.PublishedDateTime)."
+        Write-Output "`nRepository: https://github.com/$RepoOwner/$RepoName/releases`n"
+    }
     exit 0
 }
 
@@ -259,6 +364,29 @@ function Check-GitHubRelease {
     }
 }
 
+function Write-Section($text) {
+    <#
+        .SYNOPSIS
+        Prints a text block surrounded by a section divider for enhanced output readability.
+
+        .DESCRIPTION
+        This function takes a string input and prints it to the console, surrounded by a section divider made of hash characters.
+        It is designed to enhance the readability of console output.
+
+        .PARAMETER text
+        The text to be printed within the section divider.
+
+        .EXAMPLE
+        Write-Section "Downloading Files..."
+        This command prints the text "Downloading Files..." surrounded by a section divider.
+    #>
+    Write-Output ""
+    Write-Output ("#" * ($text.Length + 4))
+    Write-Output "# $text #"
+    Write-Output ("#" * ($text.Length + 4))
+    Write-Output ""
+}
+
 # Uninstall from Uninstall registry key UninstallString
 function Get-UninstallString {
     param (
@@ -324,33 +452,13 @@ function Remove-StartMenuShortcuts {
     Remove-Shortcut -ShortcutPathName "Start Menu" -ShortcutName $ShortcutName -UserPath $userStartMenuPath -PublicPath $publicStartMenuPath
 }
 
-# Help
-if ($Help) {
-    Get-Help -Name $MyInvocation.MyCommand.Source -Full
-    exit 0
-}
+# ============================================================================ #
+# Initial checks
+# ============================================================================ #
 
-# Check for updates
+# Check for updates if -CheckForUpdate is specified
 if ($CheckForUpdate) {
-    $Data = Check-GitHubRelease -Owner $RepoOwner -Repo $RepoName
-    $LatestVersion = $Data.LatestVersion
-
-    # Convert UTC time to local time
-    $PublishedAt = [DateTime]::Parse($Data.PublishedAt)
-    $UtcDateTimeFormat = "MM/dd/yyyy HH:mm:ss"
-
-    # Convert UTC time string to local time
-    $UtcDateTime = [DateTime]::ParseExact($PublishedAt, $UtcDateTimeFormat, $null)
-    $PublishedLocalDateTime = $UtcDateTime.ToLocalTime()
-
-    if ($LatestVersion -gt $CurrentVersion) {
-        Write-Output "A new version of $RepoName is available.`nCurrent version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedLocalDateTime."
-        Write-Output "You can download the latest version from https://github.com/$RepoOwner/$RepoName/releases"
-    } else {
-        Write-Output "$RepoName is up to date.`nCurrent version: $CurrentVersion. Latest version: $LatestVersion. Published at: $PublishedLocalDateTime."
-        Write-Output "Repository: https://github.com/$RepoOwner/$RepoName/releases"
-    }
-    exit 0
+    CheckForUpdate -RepoOwner $RepoOwner -RepoName $RepoName -CurrentVersion $CurrentVersion -PowerShellGalleryName $PowerShellGalleryName
 }
 
 # Check if exactly one or none of -EnableChatWidget, -DisableChatWidget, or -UnsetChatWidget is specified
@@ -379,7 +487,7 @@ try {
     # Spacer
     Write-Output ""
 
-    # Update note
+    # Heading
     Write-Output "UninstallTeams $CurrentVersion"
     Write-Output "To check for updates, run UninstallTeams -CheckForUpdate"
 
@@ -500,30 +608,46 @@ try {
     Write-Warning "An error occurred during the Teams uninstallation process: $_"
 }
 
+# Let user know nothing will change
+if ($Uninstall -eq $true) {
+    Write-Output ""
+    Write-Output "Teams has been uninstalled, please restart your computer."
+    Write-Output ""
+    Write-Output "The information below is only information, the settings below will not change unless you use parameters to change them."
+}
+
 # Output the Chat widget status of both the current user and the local machine
 $CurrentUserStatus = Get-ChatWidgetStatus
 $LocalMachineStatus = Get-ChatWidgetStatus -AllUsers
 
-# Chat widget status
-Write-Output ""
-Write-Output "----------------- Chat widget ----------------"
+# Determine the effective status
+if ($CurrentUserStatus -ne "Unset (default is enabled)") {
+    $effectiveStatus = $CurrentUserStatus
+} elseif ($LocalMachineStatus -ne "Unset (default is enabled)") {
+    $effectiveStatus = $LocalMachineStatus
+} else {
+    $effectiveStatus = "Enabled by default"
+    Write-Output "Both Current User and Local Machine statuses are Unset (default is enabled). Enabled by default."
+}
+
+Write-Section("Chat widget")
 Write-Output "Current User Status: $CurrentUserStatus"
 Write-Output "Local Machine Status: $LocalMachineStatus"
-Write-Output "----------------------------------------------"
+Write-Output "Effective Status: $effectiveStatus"
+Write-Output ""
 
-# If Chat widget status is "Enabled" show a warning
-if (($CurrentUserStatus -eq "Enabled") -or ($LocalMachineStatus -eq "Enabled")) {
-    Write-Warning "Teams Chat widget is enabled. Teams could be reinstalled if the user clicks 'Continue' by using Win+C or by clicking the Chat icon in the taskbar (if enabled). Use the '-DisableChatWidget' or '-DisableChatWidget -AllUsers' switch to disable it. Use 'Get-Help UninstallTeams -Full' for more information."
+# If Chat widget status is "Enabled" or "Enabled by default", show a warning
+if ($effectiveStatus -eq "Enabled" -or $effectiveStatus -eq "Enabled by default") {
+    Write-Warning "Teams Chat widget is enabled. Teams could be reinstalled if the user clicks 'Continue' after using Win+C or by clicking the Chat icon in the taskbar (if enabled). Use the '-DisableChatWidget' or '-DisableChatWidget -AllUsers' switch to disable it. Current user takes precedence unless unset. Use 'Get-Help UninstallTeams -Full' for more information."
 }
 
 # Output the Office Teams install status
 $OfficeTeamsInstallStatus = Get-OfficeTeamsInstallStatus
 
 # Chat widget status
-Write-Output ""
-Write-Output "----- Office's ability to install Teams ------"
+Write-Section("Office's ability to install Teams")
 Write-Output "Status: $OfficeTeamsInstallStatus"
-Write-Output "----------------------------------------------"
+Write-Output ""
 
 # If Office Team install status is Enabled or unset, show a warning
 if (($OfficeTeamsInstallStatus -eq "Enabled") -or ($OfficeTeamsInstallStatus -eq "Unset (default is enabled)")) {
@@ -531,7 +655,8 @@ if (($OfficeTeamsInstallStatus -eq "Enabled") -or ($OfficeTeamsInstallStatus -eq
 }
 
 # Office note
-Write-Output "`nNote: If you just installed Microsoft Office, you may need to restart the computer once or`ntwice and then run UninstallTeams to prevent Teams from reinstalling."
+Write-Section("Office Note")
+Write-Output "If you just installed Microsoft Office, you may need to restart the computer once or`ntwice and then run UninstallTeams to prevent Teams from reinstalling."
 
 # Spacer
 Write-Output ""

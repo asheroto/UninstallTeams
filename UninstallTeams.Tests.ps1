@@ -1,3 +1,8 @@
+# First unset
+.\UninstallTeams.ps1 -UnsetOfficeTeamsInstall
+.\UninstallTeams.ps1 -UnsetChatWidget
+.\UninstallTeams.ps1 -UnsetChatWidget -AllUsers
+
 # Dot source the main script
 . "$PSScriptRoot\UninstallTeams.ps1"
 

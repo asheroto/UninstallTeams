@@ -1,4 +1,4 @@
-![Uninstall Teams](https://github.com/asheroto/UninstallTeams/assets/49938263/aaa5ab1a-40f3-4a38-bf44-5ee7dbece2df)
+![Uninstall Teams](https://github.com/asheroto/UninstallTeams/assets/49938263/5d786fb1-6716-4636-b407-6feb1e7a48fd)
 
 [![GitHub Release Date - Published_At](https://img.shields.io/github/release-date/asheroto/UninstallTeams)](https://github.com/asheroto/UninstallTeams/releases)
 [![GitHub Downloads - All Releases](https://img.shields.io/github/downloads/asheroto/UninstallTeams/total)](https://github.com/asheroto/UninstallTeams/releases)
@@ -67,18 +67,18 @@ These options are used independent of the main script. If you do not use any opt
 
 UninstallTeams provides additional options to manage the Chat widget (Win+C) for Microsoft Teams, as well as the ability to prevent Teams from being installed when installing Microsoft Office.
 
-| Parameter                 | Description                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| EnableChatWidget          | Enables the Chat widget (Win+C) for Microsoft Teams.                            |
-| DisableChatWidget         | Disables the Chat widget (Win+C) for Microsoft Teams.                           |
-| UnsetChatWidget           | Removes the Chat widget key, effectively enabling it since that is the default. |
-| AllUsers                  | Applies the Chat widget setting to all user profiles on the machine.            |
-| EnableOfficeTeamsInstall  | Enables the ability for Office to install Teams.                                |
-| DisableOfficeTeamsInstall | Disables the ability for Office to install Teams.                               |
-| UnsetOfficeTeamsInstall   | Unsets the ability for Office to install Teams (default is enabled).            |
-| Version                   | Outputs the current version of the script.                                      |
-| Help                      | Displays the full help information for the script.                              |
-| CheckForUpdate            | Checks for updates to the script on GitHub.                                     |
+| Parameter                 | Description                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
+| EnableChatWidget          | Enables the Chat widget (Win+C) for Microsoft Teams.                                        |
+| DisableChatWidget         | Disables the Chat widget (Win+C) for Microsoft Teams.                                       |
+| UnsetChatWidget           | Removes the Chat widget value, effectively enabling it since that is the default.           |
+| AllUsers                  | Applies the Chat widget setting to all user profiles on the machine.                        |
+| EnableOfficeTeamsInstall  | Enables the ability for Office to install Teams.                                            |
+| DisableOfficeTeamsInstall | Disables the ability for Office to install Teams.                                           |
+| UnsetOfficeTeamsInstall   | Removes the Office Teams registry value, effectively enabling it since that is the default. |
+| Version                   | Outputs the current version of the script.                                                  |
+| Help                      | Displays the full help information for the script.                                          |
+| CheckForUpdate            | Checks for updates to the script on GitHub.                                                 |
 
 ## Contributing
 
