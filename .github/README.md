@@ -11,7 +11,7 @@ UninstallTeams is a PowerShell script that allows you to quickly uninstall Micro
 
 You can also adjust the ability to access the Chat widget (Win+C) by enabling, disabling, or unsetting (default / effectively enabling). By default, the chat widget is enabled (unset). You can disable it by running the script with the `-DisableChatWidget` parameter. The `-AllUsers` parameter can be used to apply the setting to all user profiles on the machine, excluding the current one, as they are not applied to the current user profile (HKLM/HKCU registry hives).
 
-By default when installing Microsoft Office, Teams is installed. To prevent Teams from being installed when installing Office, you can run `-EnablePreventTeamsInstall` *before* you install Office. To re-enable Teams to be installed when installing Office, you can run `-DisablePreventTeamsInstall`. This is a machine-wide setting.
+By default when installing Microsoft Office, Teams is installed. To prevent Teams from being installed when installing Office, you can run `-EnablePreventTeamsInstall` _before_ you install Office. To re-enable Teams to be installed when installing Office, you can run `-DisablePreventTeamsInstall`. This is a machine-wide setting.
 
 If you specify a paramter, it will not uninstall Teams. If you do not specify a parameter, it will uninstall Teams.
 
@@ -63,19 +63,23 @@ This will execute the script and uninstall Microsoft Teams from your machine.
 
 ### Parameters
 
+These options are used independent of the main script. If you do not use any options, the script will uninstall Teams. If you use any of the options, the script will not uninstall Teams.
+
 UninstallTeams provides additional options to manage the Chat widget (Win+C) for Microsoft Teams, as well as the ability to prevent Teams from being installed when installing Microsoft Office.
 
-| Parameter                | Description                                                                                     |
-|--------------------------|-------------------------------------------------------------------------------------------------|
-| EnableChatWidget         | Enables the Chat widget (Win+C) for Microsoft Teams.                                            |
-| DisableChatWidget        | Disables the Chat widget (Win+C) for Microsoft Teams.                                           |
-| UnsetChatWidget          | Removes the Chat widget key, effectively enabling it since that is the default.                 |
-| AllUsers                 | Applies the Chat widget setting to all user profiles on the machine.                            |
-| EnableOfficeTeamsInstall | Enables the ability for Office to install Teams.                                                |
-| DisableOfficeTeamsInstall| Disables the ability for Office to install Teams.                                               |
-| UnsetOfficeTeamsInstall  | Unsets the ability for Office to install Teams (default is enabled).                            |
-| Version                  | Outputs the current version of the script.                                                      |
-| Help                     | Displays the full help information for the script.                                              |
-| CheckForUpdate           | Checks for updates to the script on GitHub.                                                     |
+| Parameter                 | Description                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| EnableChatWidget          | Enables the Chat widget (Win+C) for Microsoft Teams.                            |
+| DisableChatWidget         | Disables the Chat widget (Win+C) for Microsoft Teams.                           |
+| UnsetChatWidget           | Removes the Chat widget key, effectively enabling it since that is the default. |
+| AllUsers                  | Applies the Chat widget setting to all user profiles on the machine.            |
+| EnableOfficeTeamsInstall  | Enables the ability for Office to install Teams.                                |
+| DisableOfficeTeamsInstall | Disables the ability for Office to install Teams.                               |
+| UnsetOfficeTeamsInstall   | Unsets the ability for Office to install Teams (default is enabled).            |
+| Version                   | Outputs the current version of the script.                                      |
+| Help                      | Displays the full help information for the script.                              |
+| CheckForUpdate            | Checks for updates to the script on GitHub.                                     |
 
-These options are used independent of the main script.
+## Contributing
+
+If you're like to help develop this project: fork the repo, edit, then submit a pull request. 😊
