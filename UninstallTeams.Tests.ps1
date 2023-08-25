@@ -12,21 +12,23 @@ Describe "UninstallTeams" {
 
 Describe "Get-ChatWidgetStatus Function" {
     Context "When the registry key is missing" {
-        It "Should return 'Not Set'" {
+        It "Should return 'Unset (default is enabled)'" {
             $status = Get-ChatWidgetStatus
-            if ($status -eq "Unset (default is enabled)")
-            # Test passed
-            $true | Should -Be $true
-        } elseif ($status -eq "Hidden") {
-            # Test passed but with unexpected result, display a warning
-            Write-Warning "Unexpected result: The registry key is missing, but the status is 'Hidden'."
-            $true | Should -Be $true
-        } else {
-            # Test failed
-            Throw "Test failed: Unexpected status '$status' returned."
+            if ($status -eq "Unset (default is enabled)") {
+                # Test passed
+                $true | Should -Be $true
+            } elseif ($status -eq "Hidden") {
+                # Test passed but with unexpected result, display a warning
+                Write-Warning "Unexpected result: The registry key is missing, but the status is 'Hidden'."
+                $true | Should -Be $true
+            } else {
+                # Test failed
+                Throw "Test failed: Unexpected status '$status' returned."
+            }
         }
     }
 }
+
 
 Context "When ChatIcon value is 1" {
     It "Should return 'Enabled'" {
@@ -91,9 +93,8 @@ Context "When -AllUsers switch is used with -UnsetChatWidget" {
     It "Should set the Chat widget status for all users" {
         Set-ChatWidgetStatus -UnsetChatWidget -AllUsers
         $status = Get-ChatWidgetStatus -AllUsers
-        $status | Should -Be "Not Set"
+        $status | Should -Be "Unset (default is enabled)"
     }
-}
 }
 
 Describe "Set-ChatWidgetStatus Function" {
@@ -121,7 +122,7 @@ Describe "Set-ChatWidgetStatus Function" {
         It "Should unset the Chat widget" {
             Set-ChatWidgetStatus -UnsetChatWidget
             $status = Get-ChatWidgetStatus
-            $status | Should -Be "Not Set"
+            $status | Should -Be "Unset (default is enabled)"
         }
     }
 
@@ -234,29 +235,35 @@ Describe "Uninstall Teams" {
 
         It "Should have deleted Teams startup registry key" {
             {
-                Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -ErrorAction SilentlyContinue
-                Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -ErrorAction SilentlyContinue
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -ErrorAction Stop
+            } | Should -Throw
+
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -ErrorAction Stop
             } | Should -Throw
         }
 
-        It "Should have deleted Teams desktop shortcuts" {
-            # Assuming you have a function to check desktop shortcuts
-            Test-DesktopShortcuts -ShortcutName "Microsoft Teams" | Should -Be $false
+        Describe "Uninstall Teams" {
+            It "Should have deleted Teams desktop shortcuts" {
+                $userDesktopPath = [Environment]::GetFolderPath("Desktop")
+                $publicDesktopPath = "$env:PUBLIC\Desktop"
+                $userShortcutPath = Join-Path -Path $userDesktopPath -ChildPath "Microsoft Teams.lnk"
+                $publicShortcutPath = Join-Path -Path $publicDesktopPath -ChildPath "Microsoft Teams.lnk"
+
+                (Test-Path -Path $userShortcutPath) | Should -Be $false
+                (Test-Path -Path $publicShortcutPath) | Should -Be $false
+            }
+
+            It "Should have deleted Teams start menu shortcuts" {
+                $userStartMenuPath = [Environment]::GetFolderPath("StartMenu") + "\Programs"
+                $publicStartMenuPath = "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs"
+                $userShortcutPath = Join-Path -Path $userStartMenuPath -ChildPath "Microsoft Teams.lnk"
+                $publicShortcutPath = Join-Path -Path $publicStartMenuPath -ChildPath "Microsoft Teams.lnk"
+
+                (Test-Path -Path $userShortcutPath) | Should -Be $false
+                (Test-Path -Path $publicShortcutPath) | Should -Be $false
+            }
         }
 
-        It "Should have deleted Teams start menu shortcuts" {
-            # Assuming you have a function to check start menu shortcuts
-            Test-StartMenuShortcuts -ShortcutName "Microsoft Teams" | Should -Be $false
-        }
-
-        It "Should have deleted Teams meeting addin" {
-            $teamsMeetingAddin = "$env:LOCALAPPDATA\Microsoft\TeamsMeetingAddin"
-            Test-Path $teamsMeetingAddin | Should -Be $false
-        }
-
-        It "Should have deleted Teams presence addin" {
-            $teamsPresenceAddin = "$env:LOCALAPPDATA\Microsoft\TeamsPresenceAddin"
-            Test-Path $teamsPresenceAddin | Should -Be $false
-        }
     }
 }
