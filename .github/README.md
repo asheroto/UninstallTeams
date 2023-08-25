@@ -5,31 +5,53 @@
 
 # UninstallTeams
 
-UninstallTeams is a PowerShell script that allows you to quickly uninstall Microsoft Teams from all locations on your Windows machine. You can also adjust the status of the Chat widget (Win+C) by enabling, disabling, or unsetting (default / effectively enabling).
+UninstallTeams is a PowerShell script that allows you to quickly uninstall Microsoft Teams from all locations on your Windows machine. Desktop and Start Menu shortcuts are also removed.
 
-## Installation
+You can also adjust the ability to access the Chat widget (Win+C) by enabling, disabling, or unsetting (default / effectively enabling). By default, the chat widget is enabled (unset). You can disable it by running the script with the `-DisableChatWidget` parameter. The `-AllUsers` parameter can be used to apply the setting to all user profiles on the machine, excluding the current one, as they are not applied to the current user profile (HKLM/HKCU registry hives).
 
-To install UninstallTeams, open PowerShell as Administrator and run the following command:
+By default when installing Microsoft Office, Teams is installed. To prevent Teams from being installed when installing Office, you can run `-EnablePreventTeamsInstall` *before* you install Office. To re-enable Teams to be installed when installing Office, you can run `-DisablePreventTeamsInstall`. This is a machine-wide setting.
+
+If you specify a paramter, it will not uninstall Teams. If you do not specify a parameter, it will uninstall Teams.
+
+Microsoft Teams user data is not removed.
+
+**Note:** If you just installed Microsoft Office, you may need to restart the computer once or twice and then run UninstallTeams to prevent Teams from reinstalling.
+
+## Setup
+
+### Method 1 - PowerShell Gallery
+
+**Note:** please use the latest version using Install-Script or the PS1 file from Releases, the version on GitHub itself may be under development and not work properly.
+
+Open PowerShell as Administrator and type
 
 ```powershell
-Install-Script UninstallTeams
+Install-Script UninstallTeams -Force
 ```
 
 Follow the prompts to complete the installation (you can tap `A` to accept all prompts or `Y` to select them individually.
 
-The script is published on [PowerShell Gallery](https://www.powershellgallery.com/packages/UninstallTeams).
+**Note:** `-Force` is optional but recommended, as it will force the script to update if it is outdated.
+
+The script is published on [PowerShell Gallery](https://www.powershellgallery.com/packages/UninstallTeams) under `UninstallTeams`.
 
 ### Tip - How to trust PSGallery
 
-If you want to trust PSGallery so you aren't prompted each time you run this command, you can type...
+If you want to trust PSGallery so you aren't prompted each time you run this command, or if you're scripting this and want to ensure the script isn't interrupted the first time it runs...
 
 ```powershell
-Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+Install-PackageProvider -Name "NuGet" -Force
+Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted
 ```
+
+### Method 2 - Download Locally and Run
+
+-   Download the latest [UninstallTeams.ps1](https://github.com/asheroto/UninstallTeams/releases/latest/download/UninstallTeams.ps1) from [Releases](https://github.com/asheroto/UninstallTeams/releases)
+-   Run the script with `.\UninstallTeams.ps1`
 
 ## Usage
 
-To use UninstallTeams, open PowerShell as Administrator and run the following command:
+In PowerShell, type
 
 ```powershell
 UninstallTeams
@@ -37,9 +59,9 @@ UninstallTeams
 
 This will execute the script and uninstall Microsoft Teams from your machine.
 
-### Chat Widget Options
+### Parameters
 
-UninstallTeams provides additional options to manage the Chat widget (Win+C) for Microsoft Teams.
+UninstallTeams provides additional options to manage the Chat widget (Win+C) for Microsoft Teams, as well as the ability to prevent Teams from being installed when installing Microsoft Office.
 
 You can use the following parameters:
 | Parameter | Required | Description |
