@@ -65,12 +65,17 @@ This will execute the script and uninstall Microsoft Teams from your machine.
 
 UninstallTeams provides additional options to manage the Chat widget (Win+C) for Microsoft Teams, as well as the ability to prevent Teams from being installed when installing Microsoft Office.
 
-You can use the following parameters:
-| Parameter | Required | Description |
-| --------------------- | -------- | ------------------------------------------------------------------- |
-| `-EnableChatWidget` | No | Enables the Chat widget (Win+C) for Microsoft Teams. |
-| `-DisableChatWidget` | No | Disables the Chat widget (Win+C) for Microsoft Teams. |
-| `-UnsetChatWidget` | No | Removes the Chat widget key, effectively enabling it (default). |
-| `-AllUsers` | No | Applies the Chat widget setting to all user profiles on the machine. |
+| Parameter                | Description                                                                                     |
+|--------------------------|-------------------------------------------------------------------------------------------------|
+| EnableChatWidget         | Enables the Chat widget (Win+C) for Microsoft Teams.                                            |
+| DisableChatWidget        | Disables the Chat widget (Win+C) for Microsoft Teams.                                           |
+| UnsetChatWidget          | Removes the Chat widget key, effectively enabling it since that is the default.                 |
+| AllUsers                 | Applies the Chat widget setting to all user profiles on the machine.                            |
+| EnableOfficeTeamsInstall | Enables the ability for Office to install Teams.                                                |
+| DisableOfficeTeamsInstall| Disables the ability for Office to install Teams.                                               |
+| UnsetOfficeTeamsInstall  | Unsets the ability for Office to install Teams (default is enabled).                            |
+| Version                  | Outputs the current version of the script.                                                      |
+| Help                     | Displays the full help information for the script.                                              |
+| CheckForUpdate           | Checks for updates to the script on GitHub.                                                     |
 
 These options are used independent of the main script.
