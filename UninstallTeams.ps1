@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.1.1
+.VERSION 1.1.2
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -22,6 +22,7 @@
 [Version 1.0.5] - Changed -CheckForUpdates to -CheckForUpdate.
 [Version 1.1.0] - Various bug fixes. Added removal of Desktop and Start Menu shortcuts. Added method to prevent Office from installing Teams. Added folders and registry keys to detect.
 [Version 1.1.1] - Improved Chat widget warning detection. Improved output into section headers.
+[Version 1.1.2] - Improved DisableOfficeTeamsInstall by adding registry key if it doesn't exist.
 #>
 
 <#
@@ -91,7 +92,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.1.1
+Version  : 1.1.2
 Created by   : asheroto
 
 .LINK
@@ -115,7 +116,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.1.1'
+$CurrentVersion = '1.1.2'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -313,30 +314,22 @@ function Set-OfficeTeamsInstallStatus {
         [switch]$UnsetOfficeTeamsInstall
     )
 
-    # According to Microsoft, HKLM is the only key that matters for this (no HKCU)
     $RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate"
+
+    if (-Not (Test-Path $RegistryPath)) {
+        Write-Output "Creating registry path $RegistryPath."
+        New-Item -Path $RegistryPath -Force | Out-Null
+    }
 
     if ($EnableOfficeTeamsInstall) {
         $WhatChanged = "enabled"
-        if (Test-Path $RegistryPath) {
-            Set-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -Value 0 -Type DWord -Force
-        } else {
-            New-Item -Path $RegistryPath | Out-Null
-            Set-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -Value 0 -Type DWord -Force
-        }
+        Set-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -Value 0 -Type DWord -Force
     } elseif ($DisableOfficeTeamsInstall) {
         $WhatChanged = "disabled"
-        if (Test-Path $RegistryPath) {
-            Set-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -Value 1 -Type DWord -Force
-        } else {
-            New-Item -Path $RegistryPath | Out-Null
-            Set-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -Value 1 -Type DWord -Force
-        }
+        Set-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -Value 1 -Type DWord -Force
     } elseif ($UnsetOfficeTeamsInstall) {
         $WhatChanged = "unset (default is enabled)"
-        if (Test-Path $RegistryPath) {
-            Remove-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -ErrorAction SilentlyContinue
-        }
+        Remove-ItemProperty -Path $RegistryPath -Name "PreventTeamsInstall" -ErrorAction SilentlyContinue
     }
 
     Write-Output "Office's ability to install Teams has been $WhatChanged."
