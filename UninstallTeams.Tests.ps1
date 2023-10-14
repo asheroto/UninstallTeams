@@ -256,6 +256,16 @@ Describe "Uninstall Teams" {
             } | Should -Throw
         }
 
+        It "Should have deleted Teams uninstall registry key" {
+            {
+                Get-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Teams' -ErrorAction Stop
+            }
+
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Teams' -ErrorAction Stop
+            }
+        }
+
         Describe "Uninstall Teams" {
             It "Should have deleted Teams desktop shortcuts" {
                 $userDesktopPath = [Environment]::GetFolderPath("Desktop")

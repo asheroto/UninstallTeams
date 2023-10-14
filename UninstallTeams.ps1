@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.1.3
+.VERSION 1.1.4
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -24,6 +24,7 @@
 [Version 1.1.1] - Improved Chat widget warning detection. Improved output into section headers.
 [Version 1.1.2] - Improved DisableOfficeTeamsInstall by adding registry key if it doesn't exist.
 [Version 1.1.3] - Added TeamsMachineInstaller registry key for deletion.
+[Version 1.1.4] - Added Teams uninstall registry key for deletion.
 #>
 
 <#
@@ -93,7 +94,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.1.3
+Version  : 1.1.4
 Created by   : asheroto
 
 .LINK
@@ -117,7 +118,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.1.3'
+$CurrentVersion = '1.1.4'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -577,6 +578,11 @@ try {
         Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
         Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
         Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+
+        # Remove Teams uninstall registry keys
+        Write-Output "Deleting Teams uninstall registry keys..."
+        Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Teams" -Force -Recurse -ErrorAction SilentlyContinue
+        Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Teams" -Force -Recurse -ErrorAction SilentlyContinue
 
         # Removing desktop shortcuts
         Write-Output "Deleting Teams desktop shortcuts..."
