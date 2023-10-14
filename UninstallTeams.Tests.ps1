@@ -246,6 +246,14 @@ Describe "Uninstall Teams" {
             {
                 Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -ErrorAction Stop
             } | Should -Throw
+
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineInstaller' -ErrorAction Stop
+            } | Should -Throw
+
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineInstaller' -ErrorAction Stop
+            } | Should -Throw
         }
 
         Describe "Uninstall Teams" {
