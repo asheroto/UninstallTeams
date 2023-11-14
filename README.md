@@ -2,8 +2,9 @@
 
 [![GitHub Release Date - Published_At](https://img.shields.io/github/release-date/asheroto/UninstallTeams)](https://github.com/asheroto/UninstallTeams/releases)
 [![GitHub Downloads - All Releases](https://img.shields.io/github/downloads/asheroto/UninstallTeams/total)](https://github.com/asheroto/UninstallTeams/releases)
-[![GitHub Sponsor](https://img.shields.io/github/sponsors/asheroto?label=Sponsor&logo=GitHub)](https://github.com/sponsors/asheroto)
+[![GitHub Sponsor](https://img.shields.io/github/sponsors/asheroto?label=Sponsor&logo=GitHub)](https://github.com/sponsors/asheroto?frequency=one-time&sponsor=asheroto)
 <a href="https://ko-fi.com/asheroto"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Ko-Fi Button" height="20px"></a>
+<a href="https://www.buymeacoffee.com/asheroto"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=seb6596&button_colour=FFDD00&font_colour=000000&font_family=Lato&outline_colour=000000&coffee_colour=ffffff](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=asheroto&button_colour=FFDD00&font_colour=000000&font_family=Lato&outline_colour=000000&coffee_colour=ffffff)" height="40px"></a>
 
 # UninstallTeams
 
@@ -21,9 +22,11 @@ Microsoft Teams user data is not removed.
 
 ## Setup
 
+**Note:** For a stable experience, use one of the methods listed below (#1, #2, or #3) to fetch the latest version. **Using the version directly from the GitHub repository is not advised**, as it could be under active development and not fully stable.
+
 ### Method 1 - PowerShell Gallery
 
-**Note:** please use the latest version using Install-Script or the PS1 file from Releases, the version on GitHub itself may be under development and not work properly.
+**This is the recommended method, because it always gets the public release that has been tested, it's easy to remember, and supports all parameters.**
 
 Open PowerShell as Administrator and type
 
@@ -46,7 +49,23 @@ Install-PackageProvider -Name "NuGet" -Force
 Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted
 ```
 
-### Method 2 - Download Locally and Run
+### Method 2 - One Line Command (Runs Immediately)
+
+The URL [asheroto.com/uninstallteams](https://asheroto.com/uninstallteams) always redirects to the [latest code-signed release](https://github.com/asheroto/UninstallTeams/releases/latest/download/UninstallTeams.ps1) of the script.
+
+If you just need to run the basic script without any parameters, you can use the following one-line command:
+
+```powershell
+irm asheroto.com/uninstallteams | iex
+```
+
+Due to the nature of how PowerShell works, you won't be able to use any parameters like `-DisableOfficeTeamsInstall` with this command. You can either use Method [#1](https://github.com/asheroto/UninstallOneDrive#method-1---powershell-gallery), [#3](https://github.com/asheroto/UninstallOneDrive#method-3---download-locally-and-run), or if you absolutely need to use a one-line command with parameters, you can use the following:
+
+```powershell
+&([ScriptBlock]::Create((irm asheroto.com/uninstallteams))) -DisableOfficeTeamsInstall
+```
+
+### Method 3 - Download Locally and Run
 
 -   Download the latest [UninstallTeams.ps1](https://github.com/asheroto/UninstallTeams/releases/latest/download/UninstallTeams.ps1) from [Releases](https://github.com/asheroto/UninstallTeams/releases)
 -   Run the script with `.\UninstallTeams.ps1`
@@ -67,18 +86,18 @@ These options are used independent of the main script. If you do not use any opt
 
 UninstallTeams provides additional options to manage the Chat widget (Win+C) for Microsoft Teams, as well as the ability to prevent Teams from being installed when installing Microsoft Office.
 
-| Parameter                 | Description                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| EnableChatWidget          | Enables the Chat widget (Win+C) for Microsoft Teams.                                        |
-| DisableChatWidget         | Disables the Chat widget (Win+C) for Microsoft Teams.                                       |
-| UnsetChatWidget           | Removes the Chat widget value, effectively enabling it since that is the default.           |
-| AllUsers                  | Applies the Chat widget setting to all user profiles on the machine.                        |
-| EnableOfficeTeamsInstall  | Enables the ability for Office to install Teams.                                            |
-| DisableOfficeTeamsInstall | Disables the ability for Office to install Teams.                                           |
-| UnsetOfficeTeamsInstall   | Removes the Office Teams registry value, effectively enabling it since that is the default. |
-| Version                   | Outputs the current version of the script.                                                  |
-| Help                      | Displays the full help information for the script.                                          |
-| CheckForUpdate            | Checks for updates to the script on GitHub.                                                 |
+| Parameter                    | Description                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `-EnableChatWidget`          | Enables the Chat widget (Win+C) for Microsoft Teams.                                        |
+| `-DisableChatWidget`         | Disables the Chat widget (Win+C) for Microsoft Teams.                                       |
+| `-UnsetChatWidget`           | Removes the Chat widget value, effectively enabling it since that is the default.           |
+| `-AllUsers`                  | Applies the Chat widget setting to all user profiles on the machine.                        |
+| `-EnableOfficeTeamsInstall`  | Enables the ability for Office to install Teams.                                            |
+| `-DisableOfficeTeamsInstall` | Disables the ability for Office to install Teams.                                           |
+| `-UnsetOfficeTeamsInstall`   | Removes the Office Teams registry value, effectively enabling it since that is the default. |
+| `-Version`                   | Outputs the current version of the script.                                                  |
+| `-Help`                      | Displays the full help information for the script.                                          |
+| `-CheckForUpdate`            | Checks for updates to the script on GitHub.                                                 |
 
 ## Contributing
 
