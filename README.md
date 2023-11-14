@@ -59,7 +59,7 @@ If you just need to run the basic script without any parameters, you can use the
 irm asheroto.com/uninstallteams | iex
 ```
 
-Due to the nature of how PowerShell works, you won't be able to use any parameters like `-DisableOfficeTeamsInstall` with this command. You can either use Method [#1](https://github.com/asheroto/UninstallTeams#method-1---powershell-gallery), [#3](https://github.com/asheroto/UninstallTeams#method-3---download-locally-and-run), or if you absolutely need to use a one-line command with parameters, you can use the following:
+Due to the nature of how PowerShell works, you won't be able to use any parameters such as `-DisableOfficeTeamsInstall` with this command. You can either use Method [#1](https://github.com/asheroto/UninstallTeams#method-1---powershell-gallery), [#3](https://github.com/asheroto/UninstallTeams#method-3---download-locally-and-run), or if you absolutely need to use a one-line command with parameters, you can use the following:
 
 ```powershell
 &([ScriptBlock]::Create((irm asheroto.com/uninstallteams))) -DisableOfficeTeamsInstall
