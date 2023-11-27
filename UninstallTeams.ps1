@@ -26,6 +26,7 @@
 [Version 1.1.3] - Added TeamsMachineInstaller registry key for deletion.
 [Version 1.1.4] - Added Teams uninstall registry key for deletion.
 [Version 1.2.0] - Improved functionality of uninstall key removal by detecting MsiExec product GUID to uninstall teams. Added additional startup registry keys.
+[Version 1.2.1] - Added additional file and registry uninstall locations.
 #>
 
 <#
