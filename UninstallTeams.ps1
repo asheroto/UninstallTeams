@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.2.0
+.VERSION 1.2.1
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -95,7 +95,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.2.0
+Version  : 1.2.1
 Created by   : asheroto
 
 .LINK
@@ -119,7 +119,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.2.0'
+$CurrentVersion = '1.2.1'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -587,21 +587,30 @@ try {
         }
         ###########################################################################
 
+        # Uninstall from "Teams Installer"
+        $TeamsPrgFiles = Join-Path ${env:ProgramFiles(x86)} "Teams Installer\Teams.exe"
+        Write-Output "Checking Teams in `"$TeamsPrgFiles`..."
+        if (Test-Path $TeamsPrgFiles) {
+            Write-Output "Uninstalling Teams from `"$TeamsPrgFiles`..."
+            $proc = Start-Process -FilePath $TeamsPrgFiles -ArgumentList "--uninstall" -PassThru
+            $proc.WaitForExit()
+        }
+
         # Uninstall from AppData\Microsoft\Teams
-        Write-Output "Checking Teams in AppData\Microsoft\Teams..."
         $TeamsUpdateExePath = Join-Path $env:APPDATA "Microsoft\Teams\Update.exe"
+        Write-Output "Checking Teams in `"$TeamsUpdateExePath`"..."
         if (Test-Path $TeamsUpdateExePath) {
-            Write-Output "Uninstalling Teams from AppData\Microsoft\Teams..."
+            Write-Output "Uninstalling Teams from `"$TeamsUpdateExePath`"..."
             $proc = Start-Process -FilePath $TeamsUpdateExePath -ArgumentList "-uninstall -s" -PassThru
             $proc.WaitForExit()
         }
 
-        # Uninstall from TeamsInstaller
-        Write-Output "Checking Teams in Program Files (x86)..."
-        $TeamsPrgFiles = Join-Path ${env:ProgramFiles(x86)} "Teams Installer\Teams.exe"
-        if (Test-Path $TeamsPrgFiles) {
-            Write-Output "Uninstalling Teams from Program Files (x86)..."
-            $proc = Start-Process -FilePath $TeamsPrgFiles -ArgumentList "--uninstall" -PassThru
+        # Uninstall from Program Files (x86)\Microsoft\Teams\current
+        $TeamsUpdateExePathPrgX86 = Join-Path ${env:ProgramFiles(x86)} "Microsoft\Teams\current\Update.exe"
+        Write-Output "Checking Teams in `"$TeamsUpdateExePathPrgX86`"..."
+        if (Test-Path $TeamsUpdateExePathPrgX86) {
+            Write-Output "Uninstalling Teams from `"$TeamsUpdateExePathPrgX86`"..."
+            $proc = Start-Process -FilePath $TeamsUpdateExePathPrgX86 -ArgumentList "-uninstall -s" -PassThru
             $proc.WaitForExit()
         }
 
@@ -612,24 +621,24 @@ try {
 
         # Delete Microsoft Teams directory
         $MicrosoftTeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft Teams"
-        Write-Output "Deleting Microsoft Teams directory..."
+        Write-Output "Deleting `"$MicrosoftTeamsPath`"..."
         if (Test-Path $MicrosoftTeamsPath) {
             Remove-Item -Path $MicrosoftTeamsPath -Force -Recurse -ErrorAction SilentlyContinue
         }
 
         # Delete Teams directory
         $TeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Teams"
-        Write-Output "Deleting Teams directory..."
+        Write-Output "Deleting `"$TeamsPath`"..."
         if (Test-Path $TeamsPath) {
             Remove-Item -Path $TeamsPath -Force -Recurse -ErrorAction SilentlyContinue
         }
 
         # Remove from startup registry key
         Write-Output "Deleting Teams startup registry keys..."
-        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
 
         # Remove Teams uninstall registry keys
         Write-Output "Deleting Teams uninstall registry keys..."
