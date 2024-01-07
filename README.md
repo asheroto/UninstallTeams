@@ -98,6 +98,7 @@ UninstallTeams provides additional options to manage the Chat widget (Win+C) for
 | `-Version`                   | Outputs the current version of the script.                                                  |
 | `-Help`                      | Displays the full help information for the script.                                          |
 | `-CheckForUpdate`            | Checks for updates to the script on GitHub.                                                 |
+| `-Debug`                     | Debug information is natively supported with additional information presented if used.      |
 
 ## Contributing
 
