@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.2.1
+.VERSION 1.2.2
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -27,6 +27,7 @@
 [Version 1.1.4] - Added Teams uninstall registry key for deletion.
 [Version 1.2.0] - Improved functionality of uninstall key removal by detecting MsiExec product GUID to uninstall teams. Added additional startup registry keys.
 [Version 1.2.1] - Added additional file and registry uninstall locations.
+[Version 1.2.2] - Improved detection of registry uninstall keys. Improved error handling.
 #>
 
 <#
@@ -96,7 +97,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.2.1
+Version  : 1.2.2
 Created by   : asheroto
 
 .LINK
@@ -120,7 +121,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.2.1'
+$CurrentVersion = '1.2.2'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -384,36 +385,60 @@ function Write-Section($text) {
     Write-Output ""
 }
 
-# Uninstall from Uninstall registry key UninstallString
+# Get uninstall registry keys
+function Get-UninstallRegistryKey {
+    param (
+        [string]$Match
+    )
+
+    $result = @()
+    $uninstallKeys = @(
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKCU:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+
+    foreach ($key in $uninstallKeys) {
+        if (Test-Path $key) {
+            Get-Item $key | Get-ChildItem | Where-Object {
+                $_.GetValue("DisplayName") -like "*${Match}*"
+            } | ForEach-Object {
+                $result += $_.PSPath
+            }
+        }
+    }
+
+    return $result
+}
+
+# Get uninstall string from registry key
 function Get-UninstallString {
     param (
         [string]$Match
     )
 
     $result = @()
+    $registryKeys = Get-UninstallRegistryKey -Match $Match
 
-    try {
-        $uninstallKeys = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall", `
-            "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall", `
-            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall", `
-            "HKCU:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    foreach ($regKey in $registryKeys) {
+        try {
+            $displayName = (Get-ItemProperty -Path $regKey).DisplayName
+            $uninstallString = (Get-ItemProperty -Path $regKey).UninstallString
 
-        foreach ($key in $uninstallKeys) {
-            if (Test-Path $key) {
-                Get-Item $key | Get-ChildItem | Where-Object { $_.GetValue("DisplayName") -like "*${Match}*" } | ForEach-Object {
-                    $obj = [PSCustomObject]@{
-                        DisplayName     = $_.GetValue("DisplayName")
-                        UninstallString = $_.GetValue("UninstallString")
-                    }
-                    $result += $obj
+            if ($displayName -and $uninstallString) {
+                $obj = [PSCustomObject]@{
+                    DisplayName     = $displayName
+                    UninstallString = $uninstallString
                 }
+                $result += $obj
             }
-        }
+        } catch {
 
-        return $result
-    } catch {
-        # Silence errors within the function
+        }
     }
+
+    return $result
 }
 
 function Remove-Shortcut {
@@ -574,6 +599,12 @@ try {
                     $argList = $uninstallArgs.Substring($filePath.Length).Trim()
                 }
 
+                # Make sure the path exists
+                if (-not (Test-Path $filePath)) {
+                    Write-Warning "The path $filePath does not exist."
+                    continue
+                }
+
                 # Execute the uninstall command
                 if ($filePath -ieq "msiexec.exe") {
                     Write-Debug "Uninstalling Teams with command: $uninstallArgs"
@@ -653,6 +684,7 @@ try {
         # Removing start menu shortcuts
         Write-Output "Deleting Teams start menu shortcuts..."
         Remove-StartMenuShortcuts -ShortcutName "Microsoft Teams"
+        Remove-StartMenuShortcuts -ShortcutName "Microsoft Teams classic (work or school)"
 
         # Removing Teams meeting addin
         Write-Output "Deleting Teams meeting addin..."
