@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.2.0
+.VERSION 1.2.2
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -26,6 +26,8 @@
 [Version 1.1.3] - Added TeamsMachineInstaller registry key for deletion.
 [Version 1.1.4] - Added Teams uninstall registry key for deletion.
 [Version 1.2.0] - Improved functionality of uninstall key removal by detecting MsiExec product GUID to uninstall teams. Added additional startup registry keys.
+[Version 1.2.1] - Added additional file and registry uninstall locations.
+[Version 1.2.2] - Improved detection of registry uninstall keys. Improved error handling.
 #>
 
 <#
@@ -95,7 +97,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.2.0
+Version  : 1.2.2
 Created by   : asheroto
 
 .LINK
@@ -119,7 +121,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.2.0'
+$CurrentVersion = '1.2.2'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -383,36 +385,60 @@ function Write-Section($text) {
     Write-Output ""
 }
 
-# Uninstall from Uninstall registry key UninstallString
+# Get uninstall registry keys
+function Get-UninstallRegistryKey {
+    param (
+        [string]$Match
+    )
+
+    $result = @()
+    $uninstallKeys = @(
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKCU:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+
+    foreach ($key in $uninstallKeys) {
+        if (Test-Path $key) {
+            Get-Item $key | Get-ChildItem | Where-Object {
+                $_.GetValue("DisplayName") -like "*${Match}*"
+            } | ForEach-Object {
+                $result += $_.PSPath
+            }
+        }
+    }
+
+    return $result
+}
+
+# Get uninstall string from registry key
 function Get-UninstallString {
     param (
         [string]$Match
     )
 
     $result = @()
+    $registryKeys = Get-UninstallRegistryKey -Match $Match
 
-    try {
-        $uninstallKeys = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall", `
-            "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall", `
-            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall", `
-            "HKCU:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    foreach ($regKey in $registryKeys) {
+        try {
+            $displayName = (Get-ItemProperty -Path $regKey).DisplayName
+            $uninstallString = (Get-ItemProperty -Path $regKey).UninstallString
 
-        foreach ($key in $uninstallKeys) {
-            if (Test-Path $key) {
-                Get-Item $key | Get-ChildItem | Where-Object { $_.GetValue("DisplayName") -like "*${Match}*" } | ForEach-Object {
-                    $obj = [PSCustomObject]@{
-                        DisplayName     = $_.GetValue("DisplayName")
-                        UninstallString = $_.GetValue("UninstallString")
-                    }
-                    $result += $obj
+            if ($displayName -and $uninstallString) {
+                $obj = [PSCustomObject]@{
+                    DisplayName     = $displayName
+                    UninstallString = $uninstallString
                 }
+                $result += $obj
             }
-        }
+        } catch {
 
-        return $result
-    } catch {
-        # Silence errors within the function
+        }
     }
+
+    return $result
 }
 
 function Remove-Shortcut {
@@ -573,6 +599,12 @@ try {
                     $argList = $uninstallArgs.Substring($filePath.Length).Trim()
                 }
 
+                # Make sure the path exists
+                if (-not (Test-Path $filePath)) {
+                    Write-Warning "The path $filePath does not exist."
+                    continue
+                }
+
                 # Execute the uninstall command
                 if ($filePath -ieq "msiexec.exe") {
                     Write-Debug "Uninstalling Teams with command: $uninstallArgs"
@@ -587,21 +619,30 @@ try {
         }
         ###########################################################################
 
+        # Uninstall from "Teams Installer"
+        $TeamsPrgFiles = Join-Path ${env:ProgramFiles(x86)} "Teams Installer\Teams.exe"
+        Write-Output "Checking Teams in `"$TeamsPrgFiles`..."
+        if (Test-Path $TeamsPrgFiles) {
+            Write-Output "Uninstalling Teams from `"$TeamsPrgFiles`..."
+            $proc = Start-Process -FilePath $TeamsPrgFiles -ArgumentList "--uninstall" -PassThru
+            $proc.WaitForExit()
+        }
+
         # Uninstall from AppData\Microsoft\Teams
-        Write-Output "Checking Teams in AppData\Microsoft\Teams..."
         $TeamsUpdateExePath = Join-Path $env:APPDATA "Microsoft\Teams\Update.exe"
+        Write-Output "Checking Teams in `"$TeamsUpdateExePath`"..."
         if (Test-Path $TeamsUpdateExePath) {
-            Write-Output "Uninstalling Teams from AppData\Microsoft\Teams..."
+            Write-Output "Uninstalling Teams from `"$TeamsUpdateExePath`"..."
             $proc = Start-Process -FilePath $TeamsUpdateExePath -ArgumentList "-uninstall -s" -PassThru
             $proc.WaitForExit()
         }
 
-        # Uninstall from TeamsInstaller
-        Write-Output "Checking Teams in Program Files (x86)..."
-        $TeamsPrgFiles = Join-Path ${env:ProgramFiles(x86)} "Teams Installer\Teams.exe"
-        if (Test-Path $TeamsPrgFiles) {
-            Write-Output "Uninstalling Teams from Program Files (x86)..."
-            $proc = Start-Process -FilePath $TeamsPrgFiles -ArgumentList "--uninstall" -PassThru
+        # Uninstall from Program Files (x86)\Microsoft\Teams\current
+        $TeamsUpdateExePathPrgX86 = Join-Path ${env:ProgramFiles(x86)} "Microsoft\Teams\current\Update.exe"
+        Write-Output "Checking Teams in `"$TeamsUpdateExePathPrgX86`"..."
+        if (Test-Path $TeamsUpdateExePathPrgX86) {
+            Write-Output "Uninstalling Teams from `"$TeamsUpdateExePathPrgX86`"..."
+            $proc = Start-Process -FilePath $TeamsUpdateExePathPrgX86 -ArgumentList "-uninstall -s" -PassThru
             $proc.WaitForExit()
         }
 
@@ -612,24 +653,24 @@ try {
 
         # Delete Microsoft Teams directory
         $MicrosoftTeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft Teams"
-        Write-Output "Deleting Microsoft Teams directory..."
+        Write-Output "Deleting `"$MicrosoftTeamsPath`"..."
         if (Test-Path $MicrosoftTeamsPath) {
             Remove-Item -Path $MicrosoftTeamsPath -Force -Recurse -ErrorAction SilentlyContinue
         }
 
         # Delete Teams directory
         $TeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Teams"
-        Write-Output "Deleting Teams directory..."
+        Write-Output "Deleting `"$TeamsPath`"..."
         if (Test-Path $TeamsPath) {
             Remove-Item -Path $TeamsPath -Force -Recurse -ErrorAction SilentlyContinue
         }
 
         # Remove from startup registry key
         Write-Output "Deleting Teams startup registry keys..."
-        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKCU:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name 'Teams', 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData', 'com.squirrel.Teams.Teams', 'TeamsMachineInstaller' -Force -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
 
         # Remove Teams uninstall registry keys
         Write-Output "Deleting Teams uninstall registry keys..."
@@ -643,6 +684,7 @@ try {
         # Removing start menu shortcuts
         Write-Output "Deleting Teams start menu shortcuts..."
         Remove-StartMenuShortcuts -ShortcutName "Microsoft Teams"
+        Remove-StartMenuShortcuts -ShortcutName "Microsoft Teams classic (work or school)"
 
         # Removing Teams meeting addin
         Write-Output "Deleting Teams meeting addin..."
