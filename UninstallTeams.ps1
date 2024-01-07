@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.2.2
+.VERSION 1.2.3
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -28,6 +28,7 @@
 [Version 1.2.0] - Improved functionality of uninstall key removal by detecting MsiExec product GUID to uninstall teams. Added additional startup registry keys.
 [Version 1.2.1] - Added additional file and registry uninstall locations.
 [Version 1.2.2] - Improved detection of registry uninstall keys. Improved error handling.
+[Version 1.2.3] - Fixed bug when uninstalling Teams from the uninstall registry key and using MsiExec.exe.
 #>
 
 <#
@@ -97,7 +98,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.2.2
+Version  : 1.2.3
 Created by   : asheroto
 
 .LINK
@@ -107,6 +108,7 @@ Project Site: https://github.com/asheroto/UninstallTeams
 
 #Requires -RunAsAdministrator
 
+[CmdletBinding()]
 param (
     [switch]$EnableChatWidget,
     [switch]$DisableChatWidget,
@@ -121,7 +123,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.2.2'
+$CurrentVersion = '1.2.3'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -571,49 +573,33 @@ try {
         # Retrieve the uninstall information for Teams
         $uninstallInfo = Get-UninstallString -Match "Teams"
 
-        # Loop through each uninstall info object
         foreach ($info in $uninstallInfo) {
-            # Extract the uninstall string from the current object
             $uninstallString = $info.UninstallString
 
-            # Check if the uninstall string is not empty or null
             if (-not [string]::IsNullOrWhiteSpace($uninstallString)) {
+                Write-Debug "Found Teams uninstall string: $uninstallString"
 
-                # Check if the uninstall string contains "MsiExec.exe"
-                if ($uninstallString -match "MsiExec.exe") {
+                # Check if the uninstall string is an MSI command
+                if ($uninstallString -match "msiexec.exe\s*/[XxIi]\{([^\}]+)\}") {
+                    $productGUID = $matches[1]
+                    Write-Debug "Found Teams product GUID: $productGUID"
 
-                    # Extract the product GUID from the uninstall string
-                    if ($uninstallString -match "\{(.+?)\}") {
-                        $productGUID = $matches[1]
-                        Write-Debug "Found Teams product GUID: $productGUID"
-
-                        # Construct the uninstall arguments for an MSI package
-                        $uninstallArgs = "msiexec.exe /x {$productGUID} /qn"
-                        $filePath = "msiexec.exe"
-                        $argList = "/x {$productGUID} /qn"
-                    }
+                    # Construct the MSI uninstall command with the correct format for GUID
+                    $filePath = "msiexec.exe"
+                    $argList = "/x {${productGUID}} /qn"  # Correct format for GUID
                 } else {
-                    # Use the uninstall string as is for non-MSI packages
-                    $uninstallArgs = $uninstallString
-                    $filePath = $uninstallArgs.Split(" ")[0]
-                    $argList = $uninstallArgs.Substring($filePath.Length).Trim()
-                }
-
-                # Make sure the path exists
-                if (-not (Test-Path $filePath)) {
-                    Write-Warning "The path $filePath does not exist."
-                    continue
+                    # For non-MSI packages, assume the uninstall string is a complete command
+                    $filePath = $uninstallString.Split(" ")[0]
+                    $argList = $uninstallString.Substring($filePath.Length).Trim()
                 }
 
                 # Execute the uninstall command
-                if ($filePath -ieq "msiexec.exe") {
-                    Write-Debug "Uninstalling Teams with command: $uninstallArgs"
+                if ($filePath -ieq "msiexec.exe" -or (Test-Path $filePath)) {
+                    Write-Debug "Uninstalling Teams with command: $filePath $argList"
                     $proc = Start-Process -FilePath $filePath -ArgumentList $argList -PassThru
                     $proc.WaitForExit()
                 } else {
-                    Write-Debug "Uninstalling Teams with command: $uninstallArgs"
-                    $proc = Start-Process -FilePath $filePath -ArgumentList $argList -PassThru
-                    $proc.WaitForExit()
+                    Write-Warning "The path $filePath does not exist."
                 }
             }
         }
