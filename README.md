@@ -102,4 +102,4 @@ UninstallTeams provides additional options to manage the Chat widget (Win+C) for
 
 ## Contributing
 
-If you're like to help develop this project: fork the repo, edit, then submit a pull request. 😊
+If you'd like to help develop this project: fork the repo, edit, then submit a pull request. 😊
