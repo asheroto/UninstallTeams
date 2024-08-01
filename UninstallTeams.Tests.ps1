@@ -309,4 +309,3 @@ Describe "Uninstall Teams" {
     }
 
 }
-}
