@@ -9,7 +9,7 @@
 Describe "UninstallTeams" {
     Context "When running the script" {
         It "Should uninstall Microsoft Teams and remove the Teams directory" {
-            # Add your assertions here
+            # Example assertion to check if a value is true
             $true | Should -Be $true
         }
     }
@@ -285,27 +285,28 @@ Describe "Uninstall Teams" {
         }
 
         Describe "Uninstall Teams" {
-            It "Should have deleted Teams desktop shortcuts" {
-                $userDesktopPath = [System.Environment]::GetFolderPath('Desktop')
-                $publicDesktopPath = [System.Environment]::GetFolderPath('CommonDesktopDirectory')
-                $userShortcutPath = Join-Path -Path $userDesktopPath -ChildPath "Microsoft Teams.lnk"
-                $publicShortcutPath = Join-Path -Path $publicDesktopPath -ChildPath "Microsoft Teams.lnk"
+            Context "When running the script" {
+                It "Should have deleted Teams desktop shortcuts" {
+                    $userDesktopPath = [System.Environment]::GetFolderPath('Desktop')
+                    $publicDesktopPath = [System.Environment]::GetFolderPath('CommonDesktopDirectory')
+                    $userShortcutPath = Join-Path -Path $userDesktopPath -ChildPath "Microsoft Teams.lnk"
+                    $publicShortcutPath = Join-Path -Path $publicDesktopPath -ChildPath "Microsoft Teams.lnk"
 
-                (Test-Path -Path $userShortcutPath) | Should -Be $false
-                (Test-Path -Path $publicShortcutPath) | Should -Be $false
-            }
+                    (Test-Path -Path $userShortcutPath) | Should -Be $false
+                    (Test-Path -Path $publicShortcutPath) | Should -Be $false
+                }
 
-            It "Should have deleted Teams start menu shortcuts" {
-                $userStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('StartMenu'), "Programs")
-                $publicStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('CommonStartMenu'), "Programs")
-                $userShortcutPath = Join-Path -Path $userStartMenuPath -ChildPath "Microsoft Teams.lnk"
-                $publicShortcutPath = Join-Path -Path $publicStartMenuPath -ChildPath "Microsoft Teams.lnk"
+                It "Should have deleted Teams start menu shortcuts" {
+                    $userStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('StartMenu'), "Programs")
+                    $publicStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('CommonStartMenu'), "Programs")
+                    $userShortcutPath = Join-Path -Path $userStartMenuPath -ChildPath "Microsoft Teams.lnk"
+                    $publicShortcutPath = Join-Path -Path $publicStartMenuPath -ChildPath "Microsoft Teams.lnk"
 
-                (Test-Path -Path $userShortcutPath) | Should -Be $false
-                (Test-Path -Path $publicShortcutPath) | Should -Be $false
+                    (Test-Path -Path $userShortcutPath) | Should -Be $false
+                    (Test-Path -Path $publicShortcutPath) | Should -Be $false
+                }
             }
         }
 
     }
-
 }
