@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.2.4
+.VERSION 1.2.5
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -30,6 +30,7 @@
 [Version 1.2.2] - Improved detection of registry uninstall keys. Improved error handling.
 [Version 1.2.3] - Fixed bug when uninstalling Teams from the uninstall registry key and using MsiExec.exe.
 [Version 1.2.4] - Added AutorunsDisabled registry keys for deletion.
+[Version 1.2.5] - Improved path handling for Desktop and Programs folder paths by using special folders.
 #>
 
 <#
@@ -99,7 +100,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.2.4
+Version  : 1.2.5
 Created by   : asheroto
 
 .LINK
@@ -124,7 +125,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.2.4'
+$CurrentVersion = '1.2.5'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -453,8 +454,8 @@ function Remove-Shortcut {
     )
 
     try {
-        $userShortcutPath = Join-Path -Path $UserPath -ChildPath "$ShortcutName.lnk"
-        $publicShortcutPath = Join-Path -Path $PublicPath -ChildPath "$ShortcutName.lnk"
+        $userShortcutPath = [System.IO.Path]::Combine($UserPath, "$ShortcutName.lnk")
+        $publicShortcutPath = [System.IO.Path]::Combine($PublicPath, "$ShortcutName.lnk")
 
         if (Test-Path -Path $userShortcutPath) {
             Write-Output "Deleting $ShortcutName from the user's $ShortcutPathName..."
@@ -475,8 +476,8 @@ function Remove-DesktopShortcuts {
         [string]$ShortcutName
     )
 
-    $userDesktopPath = [Environment]::GetFolderPath("Desktop")
-    $publicDesktopPath = "$env:PUBLIC\Desktop"
+    $userDesktopPath = [System.Environment]::GetFolderPath('Desktop')
+    $publicDesktopPath = [System.Environment]::GetFolderPath('CommonDesktopDirectory')
 
     Remove-Shortcut -ShortcutPathName "Desktop" -ShortcutName $ShortcutName -UserPath $userDesktopPath -PublicPath $publicDesktopPath
 }
@@ -486,8 +487,8 @@ function Remove-StartMenuShortcuts {
         [string]$ShortcutName
     )
 
-    $userStartMenuPath = [Environment]::GetFolderPath("StartMenu") + "\Programs"
-    $publicStartMenuPath = "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs"
+    $userStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('StartMenu'), "Programs")
+    $publicStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('CommonStartMenu'), "Programs")
 
     Remove-Shortcut -ShortcutPathName "Start Menu" -ShortcutName $ShortcutName -UserPath $userStartMenuPath -PublicPath $publicStartMenuPath
 }

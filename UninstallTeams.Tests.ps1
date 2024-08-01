@@ -286,8 +286,8 @@ Describe "Uninstall Teams" {
 
         Describe "Uninstall Teams" {
             It "Should have deleted Teams desktop shortcuts" {
-                $userDesktopPath = [Environment]::GetFolderPath("Desktop")
-                $publicDesktopPath = "$env:PUBLIC\Desktop"
+                $userDesktopPath = [System.Environment]::GetFolderPath('Desktop')
+                $publicDesktopPath = [System.Environment]::GetFolderPath('CommonDesktopDirectory')
                 $userShortcutPath = Join-Path -Path $userDesktopPath -ChildPath "Microsoft Teams.lnk"
                 $publicShortcutPath = Join-Path -Path $publicDesktopPath -ChildPath "Microsoft Teams.lnk"
 
@@ -296,8 +296,8 @@ Describe "Uninstall Teams" {
             }
 
             It "Should have deleted Teams start menu shortcuts" {
-                $userStartMenuPath = [Environment]::GetFolderPath("StartMenu") + "\Programs"
-                $publicStartMenuPath = "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs"
+                $userStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('StartMenu'), "Programs")
+                $publicStartMenuPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath('CommonStartMenu'), "Programs")
                 $userShortcutPath = Join-Path -Path $userStartMenuPath -ChildPath "Microsoft Teams.lnk"
                 $publicShortcutPath = Join-Path -Path $publicStartMenuPath -ChildPath "Microsoft Teams.lnk"
 
@@ -307,4 +307,6 @@ Describe "Uninstall Teams" {
         }
 
     }
+
+}
 }
