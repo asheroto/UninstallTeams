@@ -256,6 +256,24 @@ Describe "Uninstall Teams" {
             } | Should -Throw
         }
 
+        It "Should have deleted Teams startup registry key" {
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\AutorunsDisabled' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -ErrorAction Stop
+            } | Should -Throw
+
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\AutorunsDisabled' -Name 'TeamsMachineUninstallerLocalAppData', 'TeamsMachineUninstallerProgramData' -ErrorAction Stop
+            } | Should -Throw
+
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\AutorunsDisabled' -Name 'TeamsMachineInstaller' -ErrorAction Stop
+            } | Should -Throw
+
+            {
+                Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\AutorunsDisabled' -Name 'TeamsMachineInstaller' -ErrorAction Stop
+            } | Should -Throw
+        }
+
         It "Should have deleted Teams uninstall registry key" {
             {
                 Get-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Teams' -ErrorAction Stop
