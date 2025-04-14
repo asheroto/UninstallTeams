@@ -566,14 +566,20 @@ try {
     if ($Uninstall -eq $true) {
         # Stopping Teams process
         Write-Output "Stopping Teams process..."
-        Stop-Process -Name "*teams*" -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name "Microsoft Teams*" -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name "Teams Machine-Wide*" -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name "MSTeams*" -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name "ms-teams*" -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name "Teams*" -Force -ErrorAction SilentlyContinue
 
         ###########################################################################
         # Start the process of uninstalling Teams
         Write-Output "Deleting Teams through uninstall registry key..."
 
         # Retrieve the uninstall information for Teams
-        $uninstallInfo = Get-UninstallString -Match "Teams"
+        $uninstallInfo = Get-UninstallString -Match "Microsoft Teams"
+        $uninstallInfo = Get-UninstallString -Match "MSTeams"
+        $uninstallInfo = Get-UninstallString -Match "Teams Machine-Wide"
 
         foreach ($info in $uninstallInfo) {
             $uninstallString = $info.UninstallString
@@ -636,8 +642,10 @@ try {
 
         # Remove via AppxPackage
         Write-Output "Removing Teams AppxPackage..."
-        Get-AppxPackage "*Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
-        Get-AppxPackage "*Teams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        Get-AppxPackage "Microsoft Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
+        Get-AppxPackage "Microsoft Teams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        Get-AppxPackage "MSTeams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        Get-AppxPackage "MSTeams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
 
         # Delete Microsoft Teams directory
         $MicrosoftTeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft Teams"
