@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.0.0
+.VERSION 2.0.1
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -32,6 +32,7 @@
 [Version 1.2.4] - Added AutorunsDisabled registry keys for deletion.
 [Version 1.2.5] - Improved path handling for Desktop and Programs folder paths by using special folders.
 [Version 2.0.0] - Added detection of whether Teams is installed before attempting to uninstall it. Added an explicit administrator check with a clear message (the #Requires statement is ignored when the script is piped to iex). Added removal of the Teams provisioned package so Teams does not reinstall for new user profiles. Added removal of classic Teams folders from all user profiles. Added non-zero exit code on failure for deployment tools. Fixed bug where only the last uninstall string search was used. Fixed Appx package name matching. Fixed version comparison in -CheckForUpdate. Fixed missing quote in output. Removed unused Check-GitHubRelease function.
+[Version 2.0.1] - Fixed script closing the console window under irm | iex by replacing bare exits with guarded exits (exit for file runs, return for iex).
 #>
 
 <#
@@ -101,7 +102,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 2.0.0
+Version  : 2.0.1
 Created by   : asheroto
 
 .LINK
@@ -126,7 +127,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '2.0.0'
+$CurrentVersion = '2.0.1'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -560,13 +561,13 @@ $chatWidgetCount = ($EnableChatWidget, $DisableChatWidget, $UnsetChatWidget).Whe
 
 if ($chatWidgetCount -gt 1) {
     Write-Warning "Please choose only one of -EnableChatWidget, -DisableChatWidget, or -UnsetChatWidget."
-    exit 1
+    if ($PSCommandPath) { exit 1 } else { return }
 }
 
 # Check if -AllUsers is specified without one of -EnableChatWidget, -DisableChatWidget, or -UnsetChatWidget
 if ($AllUsers -and $chatWidgetCount -eq 0) {
     Write-Error "The -AllUsers switch can only be used with -EnableChatWidget, -DisableChatWidget, or -UnsetChatWidget. UninstallTeams will always remove Teams for the local machine."
-    exit 1
+    if ($PSCommandPath) { exit 1 } else { return }
 }
 
 # Similar checks for -EnableOfficeTeamsInstall, -DisableOfficeTeamsInstall, or -UnsetOfficeTeamsInstall
@@ -574,7 +575,7 @@ $officeTeamsInstallCount = ($EnableOfficeTeamsInstall, $DisableOfficeTeamsInstal
 
 if ($officeTeamsInstallCount -gt 1) {
     Write-Warning "Please choose only one of -EnableOfficeTeamsInstall, -DisableOfficeTeamsInstall, or -UnsetOfficeTeamsInstall."
-    exit 1
+    if ($PSCommandPath) { exit 1 } else { return }
 }
 
 # Uninstalling is the default action when no setting switch is used
@@ -587,7 +588,8 @@ if (($Uninstall -or $officeTeamsInstallCount -gt 0 -or $AllUsers) -and -not (Tes
     Write-Output "Close this window, right-click PowerShell or Terminal, choose 'Run as administrator',"
     Write-Output "then run the command again. Nothing has been changed."
     Write-Output ""
-    exit 1
+    # exit would close the window under irm | iex before the user can read this
+    if ($PSCommandPath) { exit 1 } else { return }
 }
 
 try {
@@ -852,7 +854,8 @@ Write-Output "If you just installed Microsoft Office, you may need to restart th
 # Spacer
 Write-Output ""
 
-# Non-zero exit code so deployment tools (Intune, SCCM) can detect failure
+# Non-zero exit code so deployment tools (Intune, SCCM) can detect failure; under iex,
+# return keeps the console open (no $LASTEXITCODE, but deployment tools run the file)
 if ($UninstallFailed) {
-    exit 1
+    if ($PSCommandPath) { exit 1 } else { return }
 }
