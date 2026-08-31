@@ -228,6 +228,10 @@ Describe "Uninstall Teams" {
             Get-AppxPackage "*Teams*" | Should -BeNullOrEmpty
         }
 
+        It "Should have removed the Teams provisioned package" {
+            Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "MSTeams*" -or $_.DisplayName -like "MicrosoftTeams*" } | Should -BeNullOrEmpty
+        }
+
         It "Should have deleted the Microsoft Teams directory" {
             $TeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft Teams"
             Test-Path $TeamsPath | Should -Be $false
@@ -308,5 +312,19 @@ Describe "Uninstall Teams" {
             }
         }
 
+    }
+}
+
+Describe "Test-Admin Function" {
+    It "Should return true, since the test suite uninstalls Teams and needs to be elevated" {
+        Test-Admin | Should -Be $true
+    }
+}
+
+Describe "Test-TeamsInstalled Function" {
+    Context "After running the uninstall script" {
+        It "Should report that Teams is no longer installed" {
+            Test-TeamsInstalled | Should -Be $false
+        }
     }
 }

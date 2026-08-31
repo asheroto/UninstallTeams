@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.2.5
+.VERSION 2.0.0
 .GUID 75abbb52-e359-4945-81f6-3fdb711239a9
 .AUTHOR asherto
 .COMPANYNAME asheroto
@@ -31,6 +31,7 @@
 [Version 1.2.3] - Fixed bug when uninstalling Teams from the uninstall registry key and using MsiExec.exe.
 [Version 1.2.4] - Added AutorunsDisabled registry keys for deletion.
 [Version 1.2.5] - Improved path handling for Desktop and Programs folder paths by using special folders.
+[Version 2.0.0] - Added detection of whether Teams is installed before attempting to uninstall it. Added an explicit administrator check with a clear message (the #Requires statement is ignored when the script is piped to iex). Added removal of the Teams provisioned package so Teams does not reinstall for new user profiles. Added removal of classic Teams folders from all user profiles. Added non-zero exit code on failure for deployment tools. Fixed bug where only the last uninstall string search was used. Fixed Appx package name matching. Fixed version comparison in -CheckForUpdate. Fixed missing quote in output. Removed unused Check-GitHubRelease function.
 #>
 
 <#
@@ -100,7 +101,7 @@ UninstallTeams -UnsetOfficeTeamsInstall
 Removes the Office Teams registry value, effectively enabling it since that is the default.
 
 .NOTES
-Version  : 1.2.5
+Version  : 2.0.0
 Created by   : asheroto
 
 .LINK
@@ -125,7 +126,7 @@ param (
 )
 
 # Version
-$CurrentVersion = '1.2.5'
+$CurrentVersion = '2.0.0'
 $RepoOwner = 'asheroto'
 $RepoName = 'UninstallTeams'
 $PowerShellGalleryName = 'UninstallTeams'
@@ -206,7 +207,8 @@ function CheckForUpdate {
 
     $Data = Get-GitHubRelease -Owner $RepoOwner -Repo $RepoName
 
-    if ($Data.LatestVersion -gt $CurrentVersion) {
+    # Cast to [version] so "1.10.0" compares numerically, and tolerate a "v" tag prefix
+    if ([version]($Data.LatestVersion -replace '^v') -gt $CurrentVersion) {
         Write-Output "`nA new version of $RepoName is available.`n"
         Write-Output "Current version: $CurrentVersion."
         Write-Output "Latest version: $($Data.LatestVersion)."
@@ -272,7 +274,7 @@ function Set-ChatWidgetStatus {
         if (Test-Path $RegistryPath) {
             Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 1 -Type DWord -Force
         } else {
-            New-Item -Path $RegistryPath | Out-Null
+            New-Item -Path $RegistryPath -Force | Out-Null
             Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 1 -Type DWord -Force
         }
     } elseif ($DisableChatWidget) {
@@ -280,7 +282,7 @@ function Set-ChatWidgetStatus {
         if (Test-Path $RegistryPath) {
             Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 3 -Type DWord -Force
         } else {
-            New-Item -Path $RegistryPath | Out-Null
+            New-Item -Path $RegistryPath -Force | Out-Null
             Set-ItemProperty -Path $RegistryPath -Name "ChatIcon" -Value 3 -Type DWord -Force
         }
     } elseif ($UnsetChatWidget) {
@@ -344,28 +346,6 @@ function Set-OfficeTeamsInstallStatus {
     Write-Output "Office's ability to install Teams has been $WhatChanged."
 }
 
-function Check-GitHubRelease {
-    param (
-        [string]$Owner,
-        [string]$Repo
-    )
-    try {
-        $url = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
-        $response = Invoke-RestMethod -Uri $url -ErrorAction Stop
-
-        $latestVersion = $response.tag_name
-        $publishedAt = $response.published_at
-
-        [PSCustomObject]@{
-            LatestVersion = $latestVersion
-            PublishedAt   = $publishedAt
-        }
-    } catch {
-        Write-Error "Unable to check for updates. Error: $_"
-        exit 1
-    }
-}
-
 function Write-Section($text) {
     <#
         .SYNOPSIS
@@ -405,7 +385,7 @@ function Get-UninstallRegistryKey {
 
     foreach ($key in $uninstallKeys) {
         if (Test-Path $key) {
-            Get-Item $key | Get-ChildItem | Where-Object {
+            Get-ChildItem $key | Where-Object {
                 $_.GetValue("DisplayName") -like "*${Match}*"
             } | ForEach-Object {
                 $result += $_.PSPath
@@ -493,6 +473,79 @@ function Remove-StartMenuShortcuts {
     Remove-Shortcut -ShortcutPathName "Start Menu" -ShortcutName $ShortcutName -UserPath $userStartMenuPath -PublicPath $publicStartMenuPath
 }
 
+# Teams locations, used for both detection and removal
+$TeamsInstallerPath = Join-Path ${env:ProgramFiles(x86)} "Teams Installer\Teams.exe"
+$TeamsUpdateExePath = Join-Path $env:APPDATA "Microsoft\Teams\Update.exe"
+$TeamsUpdateExePathPrgX86 = Join-Path ${env:ProgramFiles(x86)} "Microsoft\Teams\current\Update.exe"
+$MicrosoftTeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft Teams"
+$TeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Teams"
+$UninstallMatches = @("Microsoft Teams", "MSTeams", "Teams Machine-Wide")
+
+function Test-Admin {
+    <#
+        .SYNOPSIS
+        Returns whether the current session is running elevated.
+
+        .DESCRIPTION
+        The #Requires -RunAsAdministrator statement is only honored when the script is run as a file.
+        It is ignored when the script is piped to iex, which is the documented way to run UninstallTeams,
+        so the check has to be repeated at runtime.
+    #>
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    (New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Test-TeamsInstalled {
+    <#
+        .SYNOPSIS
+        Returns whether any trace of Teams that this script removes is present.
+
+        .DESCRIPTION
+        Checks the same install locations, uninstall registry keys, and Appx packages that the
+        uninstall routine acts on, so that the script can report "not installed" instead of
+        claiming to have uninstalled something that was never there.
+    #>
+    foreach ($path in @($TeamsInstallerPath, $TeamsUpdateExePath, $TeamsUpdateExePathPrgX86, $MicrosoftTeamsPath, $TeamsPath)) {
+        if (Test-Path $path) {
+            Write-Debug "Teams detected at $path"
+            return $true
+        }
+    }
+
+    foreach ($match in $UninstallMatches) {
+        if (Get-UninstallRegistryKey -Match $match) {
+            Write-Debug "Teams detected in uninstall registry keys matching '$match'"
+            return $true
+        }
+    }
+
+    foreach ($package in @("MSTeams*", "MicrosoftTeams*")) {
+        if (Get-AppxPackage -Name $package) {
+            Write-Debug "Teams detected as Appx package $package"
+            return $true
+        }
+        if (Get-AppxPackage -Name $package -AllUsers -ErrorAction SilentlyContinue) {
+            Write-Debug "Teams detected as Appx package $package (all users)"
+            return $true
+        }
+    }
+
+    if (Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "MSTeams*" -or $_.DisplayName -like "MicrosoftTeams*" }) {
+        Write-Debug "Teams detected as provisioned package"
+        return $true
+    }
+
+    # Classic Teams in any user profile (wildcards are valid in Test-Path)
+    foreach ($profileGlob in @("Users\*\AppData\Local\Microsoft Teams", "Users\*\AppData\Local\Microsoft\Teams", "Users\*\AppData\Roaming\Microsoft\Teams")) {
+        if (Test-Path (Join-Path $env:SystemDrive $profileGlob)) {
+            Write-Debug "Teams detected in a user profile: $profileGlob"
+            return $true
+        }
+    }
+
+    return $false
+}
+
 # ============================================================================ #
 # Initial checks
 # ============================================================================ #
@@ -524,6 +577,19 @@ if ($officeTeamsInstallCount -gt 1) {
     exit 1
 }
 
+# Uninstalling is the default action when no setting switch is used
+$Uninstall = ($chatWidgetCount -eq 0) -and ($officeTeamsInstallCount -eq 0)
+
+# Everything except a per-user Chat widget change writes to HKLM or removes machine-wide files
+if (($Uninstall -or $officeTeamsInstallCount -gt 0 -or $AllUsers) -and -not (Test-Admin)) {
+    Write-Warning "UninstallTeams needs to run as an administrator."
+    Write-Output ""
+    Write-Output "Close this window, right-click PowerShell or Terminal, choose 'Run as administrator',"
+    Write-Output "then run the command again. Nothing has been changed."
+    Write-Output ""
+    exit 1
+}
+
 try {
     # Spacer
     Write-Output ""
@@ -535,53 +601,46 @@ try {
     # Spacer
     Write-Output ""
 
-    # Default
-    $Uninstall = $true
-
     # Chat widget
     if ($EnableChatWidget) {
         Set-ChatWidgetStatus -EnableChatWidget -AllUsers:$AllUsers
-        $Uninstall = $false
     } elseif ($DisableChatWidget) {
         Set-ChatWidgetStatus -DisableChatWidget -AllUsers:$AllUsers
-        $Uninstall = $false
     } elseif ($UnsetChatWidget) {
         Set-ChatWidgetStatus -UnsetChatWidget -AllUsers:$AllUsers
-        $Uninstall = $false
     }
 
     # Office Teams install
     if ($EnableOfficeTeamsInstall) {
         Set-OfficeTeamsInstallStatus -EnableOfficeTeamsInstall
-        $Uninstall = $false
     } elseif ($DisableOfficeTeamsInstall) {
         Set-OfficeTeamsInstallStatus -DisableOfficeTeamsInstall
-        $Uninstall = $false
     } elseif ($UnsetOfficeTeamsInstall) {
         Set-OfficeTeamsInstallStatus -UnsetOfficeTeamsInstall
-        $Uninstall = $false
     }
 
     # Uninstall Teams
-    if ($Uninstall -eq $true) {
+    if ($Uninstall) {
+        $TeamsWasInstalled = Test-TeamsInstalled
+    }
+
+    if ($Uninstall -and $TeamsWasInstalled) {
         # Stopping Teams process
         Write-Output "Stopping Teams process..."
-        Stop-Process -Name "Microsoft Teams*" -Force -ErrorAction SilentlyContinue
-        Stop-Process -Name "Teams Machine-Wide*" -Force -ErrorAction SilentlyContinue
-        Stop-Process -Name "MSTeams*" -Force -ErrorAction SilentlyContinue
-        Stop-Process -Name "ms-teams*" -Force -ErrorAction SilentlyContinue
-        Stop-Process -Name "Teams*" -Force -ErrorAction SilentlyContinue
+        # "Teams*" covers "Teams Machine-Wide*", and -Name is case-insensitive so "MSTeams*" covers "ms-teams*"
+        Stop-Process -Name "Microsoft Teams*", "MSTeams*", "Teams*" -Force -ErrorAction SilentlyContinue
 
         ###########################################################################
         # Start the process of uninstalling Teams
         Write-Output "Deleting Teams through uninstall registry key..."
 
         # Retrieve the uninstall information for Teams
-        $uninstallInfo = Get-UninstallString -Match "Microsoft Teams"
-        $uninstallInfo = Get-UninstallString -Match "MSTeams"
-        $uninstallInfo = Get-UninstallString -Match "Teams Machine-Wide"
+        $uninstallInfo = @()
+        foreach ($match in $UninstallMatches) {
+            $uninstallInfo += Get-UninstallString -Match $match
+        }
 
-        foreach ($info in $uninstallInfo) {
+        foreach ($info in ($uninstallInfo | Sort-Object -Property UninstallString -Unique)) {
             $uninstallString = $info.UninstallString
 
             if (-not [string]::IsNullOrWhiteSpace($uninstallString)) {
@@ -614,16 +673,14 @@ try {
         ###########################################################################
 
         # Uninstall from "Teams Installer"
-        $TeamsPrgFiles = Join-Path ${env:ProgramFiles(x86)} "Teams Installer\Teams.exe"
-        Write-Output "Checking Teams in `"$TeamsPrgFiles`..."
-        if (Test-Path $TeamsPrgFiles) {
-            Write-Output "Uninstalling Teams from `"$TeamsPrgFiles`..."
-            $proc = Start-Process -FilePath $TeamsPrgFiles -ArgumentList "--uninstall" -PassThru
+        Write-Output "Checking Teams in `"$TeamsInstallerPath`"..."
+        if (Test-Path $TeamsInstallerPath) {
+            Write-Output "Uninstalling Teams from `"$TeamsInstallerPath`"..."
+            $proc = Start-Process -FilePath $TeamsInstallerPath -ArgumentList "--uninstall" -PassThru
             $proc.WaitForExit()
         }
 
         # Uninstall from AppData\Microsoft\Teams
-        $TeamsUpdateExePath = Join-Path $env:APPDATA "Microsoft\Teams\Update.exe"
         Write-Output "Checking Teams in `"$TeamsUpdateExePath`"..."
         if (Test-Path $TeamsUpdateExePath) {
             Write-Output "Uninstalling Teams from `"$TeamsUpdateExePath`"..."
@@ -632,7 +689,6 @@ try {
         }
 
         # Uninstall from Program Files (x86)\Microsoft\Teams\current
-        $TeamsUpdateExePathPrgX86 = Join-Path ${env:ProgramFiles(x86)} "Microsoft\Teams\current\Update.exe"
         Write-Output "Checking Teams in `"$TeamsUpdateExePathPrgX86`"..."
         if (Test-Path $TeamsUpdateExePathPrgX86) {
             Write-Output "Uninstalling Teams from `"$TeamsUpdateExePathPrgX86`"..."
@@ -641,21 +697,26 @@ try {
         }
 
         # Remove via AppxPackage
+        # Package names have no spaces, so "Microsoft Teams*" never matched anything
         Write-Output "Removing Teams AppxPackage..."
-        Get-AppxPackage "Microsoft Teams*" | Remove-AppxPackage -ErrorAction SilentlyContinue
-        Get-AppxPackage "Microsoft Teams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-        Get-AppxPackage "MSTeams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-        Get-AppxPackage "MSTeams*" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        foreach ($package in @("MSTeams*", "MicrosoftTeams*")) {
+            Get-AppxPackage -Name $package | Remove-AppxPackage -ErrorAction SilentlyContinue
+            Get-AppxPackage -Name $package -AllUsers -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        }
+
+        # Remove provisioned package so Windows doesn't reinstall Teams for new user profiles
+        Write-Output "Removing Teams provisioned package..."
+        Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object {
+            $_.DisplayName -like "MSTeams*" -or $_.DisplayName -like "MicrosoftTeams*"
+        } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
 
         # Delete Microsoft Teams directory
-        $MicrosoftTeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft Teams"
         Write-Output "Deleting `"$MicrosoftTeamsPath`"..."
         if (Test-Path $MicrosoftTeamsPath) {
             Remove-Item -Path $MicrosoftTeamsPath -Force -Recurse -ErrorAction SilentlyContinue
         }
 
         # Delete Teams directory
-        $TeamsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Teams"
         Write-Output "Deleting `"$TeamsPath`"..."
         if (Test-Path $TeamsPath) {
             Remove-Item -Path $TeamsPath -Force -Recurse -ErrorAction SilentlyContinue
@@ -696,21 +757,52 @@ try {
             Remove-Item -Path $teamsMeetingAddin -Force -Recurse -ErrorAction SilentlyContinue
         }
 
-        # Removing Teams meeting addin
+        # Removing Teams presence addin
         Write-Output "Deleting Teams presence addin..."
         $teamsPresenceAddin = "$env:LOCALAPPDATA\Microsoft\TeamsPresenceAddin"
         if (Test-Path $teamsPresenceAddin) {
             Remove-Item -Path $teamsPresenceAddin -Force -Recurse -ErrorAction SilentlyContinue
         }
+
+        # Remove classic Teams leftovers from every user profile (classic Teams installs per-user,
+        # so everything above only cleaned up the profile running the script)
+        Write-Output "Deleting Teams folders from all user profiles..."
+        $profileDirs = Get-ChildItem (Join-Path $env:SystemDrive "Users") -Directory -ErrorAction SilentlyContinue | Where-Object {
+            $_.Name -notin @("Public", "Default", "Default User", "All Users")
+        }
+        foreach ($profileDir in $profileDirs) {
+            $profilePaths = @(
+                (Join-Path $profileDir.FullName "AppData\Local\Microsoft Teams"),
+                (Join-Path $profileDir.FullName "AppData\Local\Microsoft\Teams"),
+                (Join-Path $profileDir.FullName "AppData\Local\Microsoft\TeamsMeetingAddin"),
+                (Join-Path $profileDir.FullName "AppData\Local\Microsoft\TeamsPresenceAddin"),
+                (Join-Path $profileDir.FullName "AppData\Roaming\Microsoft\Teams")
+            )
+            foreach ($profilePath in $profilePaths) {
+                if (Test-Path $profilePath) {
+                    Write-Output "Deleting `"$profilePath`"..."
+                    Remove-Item -Path $profilePath -Force -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        # ponytail: other users' HKCU Run keys are left alone (their hives aren't loaded); the entries
+        # point at files deleted above, so they fail silently and Windows eventually prunes them
     }
 } catch {
+    $UninstallFailed = $true
     Write-Warning "An error occurred during the Teams uninstallation process: $_"
 }
 
-# Let user know nothing will change
-if ($Uninstall -eq $true) {
+# Report the outcome of the uninstall, then let user know nothing below will change
+if ($Uninstall) {
     Write-Output ""
-    Write-Output "Teams has been uninstalled, please restart your computer."
+    if (-not $TeamsWasInstalled) {
+        Write-Output "Teams is not installed, there was nothing to uninstall."
+    } elseif ($UninstallFailed) {
+        Write-Warning "Teams was not fully uninstalled, see the error above."
+    } else {
+        Write-Output "Teams has been uninstalled, please restart your computer."
+    }
     Write-Output ""
     Write-Output "The information below is only information, the settings below will not change unless you use parameters to change them."
 }
@@ -759,3 +851,8 @@ Write-Output "If you just installed Microsoft Office, you may need to restart th
 
 # Spacer
 Write-Output ""
+
+# Non-zero exit code so deployment tools (Intune, SCCM) can detect failure
+if ($UninstallFailed) {
+    exit 1
+}
